@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "340799576516",
+    "project_id": "docsaver-1",
+    "storage_bucket": "docsaver-1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:340799576516:android:1662bd8579e4723c8d2c91",
+        "android_client_info": {
+          "package_name": "uz.mobiledv.test1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyASlHiq7SrD6did2swIIttqwecWhtvIGg0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
