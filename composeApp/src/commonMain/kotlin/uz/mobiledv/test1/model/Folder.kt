@@ -4,9 +4,9 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class Folder(
-    val id: String,
-    val name: String,
-    val createdBy: String,
+    val id: String = "",
+    val name: String = "",
+    val createdBy: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val description: String = ""
 ) {

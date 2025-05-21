@@ -3,6 +3,7 @@
 package uz.mobiledv.test1.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,16 +17,19 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -44,6 +48,7 @@ import uz.mobiledv.test1.model.Folder
 import uz.mobiledv.test1.model.User
 import uz.mobiledv.test1.repository.FolderRepository
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FoldersScreen(
     onFolderClick: (Folder) -> Unit,
@@ -56,13 +61,23 @@ fun FoldersScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf<Folder?>(null) }
     var showDeleteDialog by remember { mutableStateOf<Folder?>(null) }
-
+    var isLoading by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    
+
     LaunchedEffect(Unit) {
-        folders = folderRepository.getAllFolders()
+        try {
+            isLoading = true
+            folders = folderRepository.getAllFolders()
+        } catch (e: Exception) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Failed to load folders: ${e.message}")
+            }
+        } finally {
+            isLoading = false
+        }
     }
-    
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -81,52 +96,83 @@ fun FoldersScreen(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-        ) {
-            items(folders) { folder ->
-                FolderItem(
-                    folder = folder,
-                    onClick = { onFolderClick(folder) },
-                    onEdit = { showEditDialog = folder },
-                    onDelete = { showDeleteDialog = folder }
-                )
+        if (isLoading) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp)
+            ) {
+                items(folders) { folder ->
+                    FolderItem(
+                        folder = folder,
+                        onClick = { onFolderClick(folder) },
+                        onEdit = { showEditDialog = folder },
+                        onDelete = { showDeleteDialog = folder },
+                    )
+                }
             }
         }
     }
-    
+
     if (showAddDialog) {
         FolderDialog(
             onDismiss = { showAddDialog = false },
             onConfirm = { name ->
                 scope.launch {
-                    folderRepository.createFolder(name)
-                    folders = folderRepository.getAllFolders()
-                    showAddDialog = false
+                    try {
+                        if (name.isBlank()) {
+                            snackbarHostState.showSnackbar("Folder name cannot be empty")
+                            return@launch
+                        }
+                        folderRepository.createFolder(name)
+                        folders = folderRepository.getAllFolders()
+                        showAddDialog = false
+                        snackbarHostState.showSnackbar("Folder created successfully")
+                    } catch (e: Exception) {
+                        snackbarHostState.showSnackbar("Failed to create folder: ${e.message}")
+                    }
                 }
             }
         )
     }
-    
+
     showEditDialog?.let { folder ->
         FolderDialog(
             folder = folder,
             onDismiss = { showEditDialog = null },
             onConfirm = { name ->
                 scope.launch {
-                    folderRepository.updateFolder(folder.id, name)
-                    folders = folderRepository.getAllFolders()
-                    showEditDialog = null
+                    try {
+                        if (name.isBlank()) {
+                            snackbarHostState.showSnackbar("Folder name cannot be empty")
+                            return@launch
+                        }
+                        folderRepository.updateFolder(folder.id, name)
+                        folders = folderRepository.getAllFolders()
+                        showEditDialog = null
+                        snackbarHostState.showSnackbar("Folder updated successfully")
+                    } catch (e: Exception) {
+                        snackbarHostState.showSnackbar("Failed to update folder: ${e.message}")
+                    }
                 }
             }
         )
     }
-    
+
     showDeleteDialog?.let { folder ->
         AlertDialog(
             onDismissRequest = { showDeleteDialog = null },
@@ -136,9 +182,14 @@ fun FoldersScreen(
                 TextButton(
                     onClick = {
                         scope.launch {
-                            folderRepository.deleteFolder(folder.id)
-                            folders = folderRepository.getAllFolders()
-                            showDeleteDialog = null
+                            try {
+                                folderRepository.deleteFolder(folder.id)
+                                folders = folderRepository.getAllFolders()
+                                showDeleteDialog = null
+                                snackbarHostState.showSnackbar("Folder deleted successfully")
+                            } catch (e: Exception) {
+                                snackbarHostState.showSnackbar("Failed to delete folder: ${e.message}")
+                            }
                         }
                     }
                 ) {
@@ -159,7 +210,7 @@ private fun FolderItem(
     folder: Folder,
     onClick: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
 ) {
     Card(
         modifier = Modifier
@@ -177,7 +228,7 @@ private fun FolderItem(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Filled.Notifications, contentDescription = null)
+                Icon(Icons.Filled.Info, contentDescription = null)
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = folder.name,
@@ -203,24 +254,31 @@ private fun FolderDialog(
     onConfirm: (name: String) -> Unit
 ) {
     var name by remember { mutableStateOf(folder?.name ?: "") }
-    
+    var showNameError by remember { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (folder == null) "Add Folder" else "Edit Folder") },
         text = {
             OutlinedTextField(
                 value = name,
-                onValueChange = { name = it },
+                onValueChange = {
+                    name = it
+                    showNameError = false
+                },
                 label = { Text("Folder Name") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                isError = showNameError
             )
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (name.isNotBlank()) {
-                        onConfirm(name)
+                    if (name.isBlank()) {
+                        showNameError = true
+                        return@TextButton
                     }
+                    onConfirm(name)
                 }
             ) {
                 Text("Save")

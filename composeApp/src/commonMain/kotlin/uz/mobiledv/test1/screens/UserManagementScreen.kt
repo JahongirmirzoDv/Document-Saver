@@ -19,12 +19,15 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -42,6 +45,7 @@ import kotlinx.coroutines.launch
 import uz.mobiledv.test1.model.User
 import uz.mobiledv.test1.repository.UserRepository
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserManagementScreen(
     onBackClick: () -> Unit,
@@ -51,13 +55,23 @@ fun UserManagementScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf<User?>(null) }
     var showDeleteDialog by remember { mutableStateOf<User?>(null) }
-
+    var isLoading by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    
+
     LaunchedEffect(Unit) {
-        users = userRepository.getAllUsers()
+        try {
+            isLoading = true
+            users = userRepository.getAllUsers()
+        } catch (e: Exception) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Failed to load users: ${e.message}")
+            }
+        } finally {
+            isLoading = false
+        }
     }
-    
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -73,7 +87,8 @@ fun UserManagementScreen(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -90,34 +105,56 @@ fun UserManagementScreen(
             }
         }
     }
-    
+
     if (showAddDialog) {
         UserDialog(
             onDismiss = { showAddDialog = false },
-            onConfirm = { username, password, isAdmin ->
+            onConfirm = { username, password ->
                 scope.launch {
-                    userRepository.createUser(username, password, isAdmin)
-                    users = userRepository.getAllUsers()
-                    showAddDialog = false
+                    try {
+                        if (username.isBlank()) {
+                            snackbarHostState.showSnackbar("Username cannot be empty")
+                            return@launch
+                        }
+                        if (password.isBlank()) {
+                            snackbarHostState.showSnackbar("Password cannot be empty")
+                            return@launch
+                        }
+                        userRepository.createUser(username, password)
+                        users = userRepository.getAllUsers()
+                        showAddDialog = false
+                        snackbarHostState.showSnackbar("User created successfully")
+                    } catch (e: Exception) {
+                        snackbarHostState.showSnackbar("Failed to create user: ${e.message}")
+                    }
                 }
             }
         )
     }
-    
+
     showEditDialog?.let { user ->
         UserDialog(
             user = user,
             onDismiss = { showEditDialog = null },
-            onConfirm = { username, password, isAdmin ->
+            onConfirm = { username, password ->
                 scope.launch {
-                    userRepository.updateUser(user.id, username, password, isAdmin)
-                    users = userRepository.getAllUsers()
-                    showEditDialog = null
+                    try {
+                        if (username.isBlank()) {
+                            snackbarHostState.showSnackbar("Username cannot be empty")
+                            return@launch
+                        }
+                        userRepository.updateUser(user.id, username, password)
+                        users = userRepository.getAllUsers()
+                        showEditDialog = null
+                        snackbarHostState.showSnackbar("User updated successfully")
+                    } catch (e: Exception) {
+                        snackbarHostState.showSnackbar("Failed to update user: ${e.message}")
+                    }
                 }
             }
         )
     }
-    
+
     showDeleteDialog?.let { user ->
         AlertDialog(
             onDismissRequest = { showDeleteDialog = null },
@@ -127,9 +164,14 @@ fun UserManagementScreen(
                 TextButton(
                     onClick = {
                         scope.launch {
-                            userRepository.deleteUser(user.id)
-                            users = userRepository.getAllUsers()
-                            showDeleteDialog = null
+                            try {
+                                userRepository.deleteUser(user.id)
+                                users = userRepository.getAllUsers()
+                                showDeleteDialog = null
+                                snackbarHostState.showSnackbar("User deleted successfully")
+                            } catch (e: Exception) {
+                                snackbarHostState.showSnackbar("Failed to delete user: ${e.message}")
+                            }
                         }
                     }
                 ) {
@@ -169,7 +211,7 @@ private fun UserItem(
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = "User",
+                    text =  "User",
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
@@ -189,11 +231,12 @@ private fun UserItem(
 private fun UserDialog(
     user: User? = null,
     onDismiss: () -> Unit,
-    onConfirm: (username: String, password: String, isAdmin: Boolean) -> Unit
+    onConfirm: (username: String, password: String) -> Unit
 ) {
     var username by remember { mutableStateOf(user?.username ?: "") }
     var password by remember { mutableStateOf("") }
-    
+    var showPasswordError by remember { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (user == null) "Add User" else "Edit User") },
@@ -203,14 +246,19 @@ private fun UserDialog(
                     value = username,
                     onValueChange = { username = it },
                     label = { Text("Username") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = username.isBlank()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Password") },
-                    modifier = Modifier.fillMaxWidth()
+                    onValueChange = { 
+                        password = it
+                        showPasswordError = false
+                    },
+                    label = { Text(if (user == null) "Password" else "New Password (leave blank to keep current)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = showPasswordError
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
@@ -223,9 +271,14 @@ private fun UserDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (username.isNotBlank() && (user != null || password.isNotBlank())) {
-                        onConfirm(username, password, true)
+                    if (username.isBlank()) {
+                        return@TextButton
                     }
+                    if (user == null && password.isBlank()) {
+                        showPasswordError = true
+                        return@TextButton
+                    }
+                    onConfirm(username, password)
                 }
             ) {
                 Text("Save")

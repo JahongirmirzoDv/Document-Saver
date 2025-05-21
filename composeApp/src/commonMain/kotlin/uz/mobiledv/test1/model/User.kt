@@ -4,12 +4,13 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class User(
-    val id: String,
-    val username: String,
-    val password: String,
+    val id: String = "",
+    val username: String = "",
+    val isAdmin: Boolean = false,
+    val password:String = ""
 ) {
     fun toMap(): Map<String, Any> {
-        return mapOf("id" to id, "username" to username, "password" to password)
+        return mapOf("id" to id, "username" to username, "isAdmin" to isAdmin)
     }
 }
 

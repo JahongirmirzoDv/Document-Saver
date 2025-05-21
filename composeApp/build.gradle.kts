@@ -61,6 +61,7 @@ kotlin {
             implementation(libs.firebase.storage)
             // Other common dependencies like coroutines, serialization
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.coroutines.play.services) // Use the latest stable version
 
         }
         commonTest.dependencies {

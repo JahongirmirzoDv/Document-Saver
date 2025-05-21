@@ -19,15 +19,18 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -40,11 +43,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import uz.mobiledv.test1.model.Document
 import uz.mobiledv.test1.repository.DocumentRepository
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentsScreen(
     folderId: String,
@@ -56,11 +61,21 @@ fun DocumentsScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf<Document?>(null) }
     var showDeleteDialog by remember { mutableStateOf<Document?>(null) }
-
+    var isLoading by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(folderId) {
-        documents = documentRepository.getDocumentsByFolder(folderId)
+        try {
+            isLoading = true
+            documents = documentRepository.getDocumentsByFolder(folderId)
+        } catch (e: Exception) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Failed to load documents: ${e.message}")
+            }
+        } finally {
+            isLoading = false
+        }
     }
 
     Scaffold(
@@ -78,21 +93,34 @@ fun DocumentsScreen(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-        ) {
-            items(documents) { document ->
-                DocumentItem(
-                    document = document,
-                    onClick = { onDocumentClick(document) },
-                    onEdit = { showEditDialog = document },
-                    onDelete = { showDeleteDialog = document }
-                )
+        if (isLoading) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp)
+            ) {
+                items(documents) { document ->
+                    DocumentItem(
+                        document = document,
+                        onClick = { onDocumentClick(document) },
+                        onEdit = { showEditDialog = document },
+                        onDelete = { showDeleteDialog = document }
+                    )
+                }
             }
         }
     }
@@ -102,9 +130,18 @@ fun DocumentsScreen(
             onDismiss = { showAddDialog = false },
             onConfirm = { name, content ->
                 scope.launch {
-                    documentRepository.createDocument(folderId, name, content)
-                    documents = documentRepository.getDocumentsByFolder(folderId)
-                    showAddDialog = false
+                    try {
+                        if (name.isBlank()) {
+                            snackbarHostState.showSnackbar("Document name cannot be empty")
+                            return@launch
+                        }
+                        documentRepository.createDocument(folderId, name, content)
+                        documents = documentRepository.getDocumentsByFolder(folderId)
+                        showAddDialog = false
+                        snackbarHostState.showSnackbar("Document created successfully")
+                    } catch (e: Exception) {
+                        snackbarHostState.showSnackbar("Failed to create document: ${e.message}")
+                    }
                 }
             }
         )
@@ -116,9 +153,18 @@ fun DocumentsScreen(
             onDismiss = { showEditDialog = null },
             onConfirm = { name, content ->
                 scope.launch {
-                    documentRepository.updateDocument(document.id, name, content)
-                    documents = documentRepository.getDocumentsByFolder(folderId)
-                    showEditDialog = null
+                    try {
+                        if (name.isBlank()) {
+                            snackbarHostState.showSnackbar("Document name cannot be empty")
+                            return@launch
+                        }
+                        documentRepository.updateDocument(document.id, name, content)
+                        documents = documentRepository.getDocumentsByFolder(folderId)
+                        showEditDialog = null
+                        snackbarHostState.showSnackbar("Document updated successfully")
+                    } catch (e: Exception) {
+                        snackbarHostState.showSnackbar("Failed to update document: ${e.message}")
+                    }
                 }
             }
         )
@@ -133,9 +179,14 @@ fun DocumentsScreen(
                 TextButton(
                     onClick = {
                         scope.launch {
-                            documentRepository.deleteDocument(document.id)
-                            documents = documentRepository.getDocumentsByFolder(folderId)
-                            showDeleteDialog = null
+                            try {
+                                documentRepository.deleteDocument(document.id)
+                                documents = documentRepository.getDocumentsByFolder(folderId)
+                                showDeleteDialog = null
+                                snackbarHostState.showSnackbar("Document deleted successfully")
+                            } catch (e: Exception) {
+                                snackbarHostState.showSnackbar("Failed to delete document: ${e.message}")
+                            }
                         }
                     }
                 ) {
@@ -175,7 +226,7 @@ private fun DocumentItem(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Filled.Person, contentDescription = null)
+                Icon(Icons.Filled.Info, contentDescription = null)
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text(
@@ -185,7 +236,8 @@ private fun DocumentItem(
                     Text(
                         text = document.content,
                         style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -209,6 +261,7 @@ private fun DocumentDialog(
 ) {
     var name by remember { mutableStateOf(document?.name ?: "") }
     var content by remember { mutableStateOf(document?.content ?: "") }
+    var showNameError by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -217,9 +270,13 @@ private fun DocumentDialog(
             Column {
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it },
+                    onValueChange = { 
+                        name = it
+                        showNameError = false
+                    },
                     label = { Text("Document Name") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = showNameError
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
@@ -227,16 +284,19 @@ private fun DocumentDialog(
                     onValueChange = { content = it },
                     label = { Text("Content") },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 3
+                    minLines = 5,
+                    maxLines = 10
                 )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (name.isNotBlank()) {
-                        onConfirm(name, content)
+                    if (name.isBlank()) {
+                        showNameError = true
+                        return@TextButton
                     }
+                    onConfirm(name, content)
                 }
             ) {
                 Text("Save")

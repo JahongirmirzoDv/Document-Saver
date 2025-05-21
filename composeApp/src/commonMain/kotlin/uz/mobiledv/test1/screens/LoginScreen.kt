@@ -5,12 +5,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +36,7 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var passwordVisible by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
 
@@ -49,36 +53,66 @@ fun LoginScreen(
 
         OutlinedTextField(
             value = username,
-            onValueChange = { username = it },
+            onValueChange = { 
+                username = it
+                error = null
+            },
             label = { Text("Username") },
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-//
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            modifier = Modifier.padding(bottom = 16.dp)
+            modifier = Modifier.padding(bottom = 16.dp),
+            isError = error != null,
+            supportingText = if (error != null) {
+                { Text(error!!) }
+            } else null
         )
 
-        if (error != null) {
-            Text(
-                text = error!!,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-        }
+        OutlinedTextField(
+            value = password,
+            onValueChange = { 
+                password = it
+                error = null
+            },
+            label = { Text("Password") },
+            modifier = Modifier.padding(bottom = 16.dp),
+            visualTransformation = if (passwordVisible) {
+                androidx.compose.ui.text.input.VisualTransformation.None
+            } else {
+                androidx.compose.ui.text.input.PasswordVisualTransformation()
+            },
+            trailingIcon = {
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(
+                        if (passwordVisible) Icons.Default.Favorite else Icons.Filled.Favorite,
+                        contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                    )
+                }
+            },
+            isError = error != null
+        )
 
         Button(
             onClick = {
+                if (username.isBlank()) {
+                    error = "Username cannot be empty"
+                    return@Button
+                }
+                if (password.isBlank()) {
+                    error = "Password cannot be empty"
+                    return@Button
+                }
+                
                 isLoading = true
                 error = null
-                // In a real app, wrap this in a coroutine scope
+                
                 scope.launch {
-                    userRepository.login(username, password)?.let { user ->
-                        onLoginSuccess(user)
-                    } ?: run {
-                        error = "Invalid credentials"
+                    try {
+                        userRepository.login(username, password)?.let { user ->
+                            onLoginSuccess(user)
+                        } ?: run {
+                            error = "Invalid username or password"
+                            isLoading = false
+                        }
+                    } catch (e: Exception) {
+                        error = "An error occurred: ${e.message}"
                         isLoading = false
                     }
                 }

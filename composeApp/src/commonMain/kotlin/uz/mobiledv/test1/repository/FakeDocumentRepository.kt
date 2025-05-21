@@ -7,7 +7,7 @@ import uz.mobiledv.test1.model.Folder
 import uz.mobiledv.test1.model.User
 
 class FakeDocumentRepository : DocumentRepository {
-    private val users = listOf(User("1234567890", "test", "test"))
+    private val users = listOf(User("1234567890", "test", true, "test"))
     private val folders =
         listOf(Folder("1", "Sample Folder", "1234567890", 0L, "Sample description"))
     private val documents = mutableListOf<Document>(
@@ -74,7 +74,6 @@ class FakeDocumentRepository : DocumentRepository {
             Document(
                 (documents.size + 1).toString(),
                 folderId,
-                fileUrl = "",
                 name,
                 content
             )

@@ -2,13 +2,12 @@ package uz.mobiledv.test1.repository
 
 import uz.mobiledv.test1.model.Folder
 
-
 interface FolderRepository {
     suspend fun getAllFolders(): List<Folder>
+    suspend fun getFolderById(id: String): Folder?
     suspend fun createFolder(name: String)
     suspend fun updateFolder(id: String, name: String)
     suspend fun deleteFolder(id: String)
-    suspend fun getFolderById(id: String): Folder?
 }
 
 class FolderRepositoryImpl : FolderRepository {
