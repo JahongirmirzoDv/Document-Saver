@@ -1,12 +1,12 @@
 package uz.mobiledv.test1.mapper
 
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToJsonElement
-import kotlinx.serialization.decodeFromJsonElement
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.decodeFromJsonElement
+import uz.mobiledv.test1.model.Document
 import uz.mobiledv.test1.model.User
 import uz.mobiledv.test1.model.UserPrefs
 import uz.mobiledv.test1.model.Folder
-import uz.mobiledv.test1.model.Document
 import io.appwrite.models.Document as AppwriteSDKDocument
 import io.appwrite.models.DocumentList as AppwriteSDKDocumentList
 import io.appwrite.models.User as AppwriteSDKUser
@@ -30,10 +30,10 @@ val appwriteJsonMapper = Json {
 /**
  * Converts an Appwrite SDK User object to your KMP User model.
  */
-fun AppwriteSDKUser.toKmpUser(): User {
+fun User.toKmpUser(): User {
     // Extract preferences. Appwrite stores prefs as Map<String, Any?>.
     // We need to safely cast and map this to your UserPrefs KMP model.
-    val userPrefsData = this.prefs?.data
+    val userPrefsData = this.prefs
     val kmpUserPrefs = if (userPrefsData != null) {
         try {
             // Convert the prefs map to a JsonElement, then decode to UserPrefs
@@ -49,11 +49,11 @@ fun AppwriteSDKUser.toKmpUser(): User {
 
     return User(
         id = this.id,
-        username = this.name ?: "", // Appwrite 'name' can be used as username
+        username = this.username ?: "", // Appwrite 'name' can be used as username
         email = this.email,
         isAdmin = kmpUserPrefs?.isAdmin ?: false, // Get isAdmin from mapped prefs
         password = null, // Password should not be mapped back from server response
-        phoneNumber = this.phone,
+        phoneNumber = this.phoneNumber,
         prefs = kmpUserPrefs
     )
 }
@@ -63,7 +63,7 @@ fun AppwriteSDKUser.toKmpUser(): User {
 /**
  * Converts an Appwrite SDK Document (representing a Folder) to your KMP Folder model.
  */
-fun AppwriteSDKDocument.toKmpFolder(): Folder {
+fun Document.toKmpFolder(): Folder {
     // Combine system attributes and the 'data' map
     val combinedData = this.data.toMutableMap()
     combinedData["\$id"] = this.id
