@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,13 +42,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import uz.mobiledv.test1.model.User
-import uz.mobiledv.test1.repository.UserRepository
+import uz.mobiledv.test1.repository.DocumentRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserManagementScreen(
     onBackClick: () -> Unit,
-    userRepository: UserRepository
+
 ) {
     var users by remember { mutableStateOf<List<User>>(emptyList()) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -62,7 +61,7 @@ fun UserManagementScreen(
     LaunchedEffect(Unit) {
         try {
             isLoading = true
-            users = userRepository.getAllUsers()
+//            users = userRepository.getAllUsers()
         } catch (e: Exception) {
             scope.launch {
                 snackbarHostState.showSnackbar("Failed to load users: ${e.message}")
@@ -120,8 +119,8 @@ fun UserManagementScreen(
                             snackbarHostState.showSnackbar("Password cannot be empty")
                             return@launch
                         }
-                        userRepository.createUser(username, password)
-                        users = userRepository.getAllUsers()
+//                        userRepository.createUser(username, password)
+//                        users = userRepository.getAllUsers()
                         showAddDialog = false
                         snackbarHostState.showSnackbar("User created successfully")
                     } catch (e: Exception) {
@@ -143,8 +142,8 @@ fun UserManagementScreen(
                             snackbarHostState.showSnackbar("Username cannot be empty")
                             return@launch
                         }
-                        userRepository.updateUser(user.id, username, password)
-                        users = userRepository.getAllUsers()
+//                        userRepository.updateUser(user.id, username, password)
+//                        users = userRepository.getAllUsers()
                         showEditDialog = null
                         snackbarHostState.showSnackbar("User updated successfully")
                     } catch (e: Exception) {
@@ -165,8 +164,8 @@ fun UserManagementScreen(
                     onClick = {
                         scope.launch {
                             try {
-                                userRepository.deleteUser(user.id)
-                                users = userRepository.getAllUsers()
+//                                userRepository.deleteUser(user.id)
+//                                users = userRepository.getAllUsers()
                                 showDeleteDialog = null
                                 snackbarHostState.showSnackbar("User deleted successfully")
                             } catch (e: Exception) {

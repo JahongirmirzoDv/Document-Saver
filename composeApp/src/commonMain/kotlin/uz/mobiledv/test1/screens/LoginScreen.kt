@@ -24,13 +24,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import org.koin.compose.viewmodel.koinViewModel
 import uz.mobiledv.test1.model.User
-import uz.mobiledv.test1.repository.UserRepository
+import uz.mobiledv.test1.repository.DocumentRepository
 
 @Composable
 fun LoginScreen(
     onLoginSuccess: (User) -> Unit,
-    userRepository: UserRepository
+    viewModel: LoginViewModel = koinViewModel()
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -102,20 +103,15 @@ fun LoginScreen(
                 
                 isLoading = true
                 error = null
-                
-                scope.launch {
-                    try {
-                        userRepository.login(username, password)?.let { user ->
-                            onLoginSuccess(user)
-                        } ?: run {
-                            error = "Invalid username or password"
-                            isLoading = false
-                        }
-                    } catch (e: Exception) {
-                        error = "An error occurred: ${e.message}"
-                        isLoading = false
-                    }
-                }
+
+//                scope.launch {
+//                    try {
+//                        onLoginSuccess(userRepository.login(username, password))
+//                    } catch (e: Exception) {
+//                        error = "An error occurred: ${e.message}"
+//                        isLoading = false
+//                    }
+//                }
             },
             enabled = !isLoading && username.isNotBlank() && password.isNotBlank(),
             modifier = Modifier.padding(top = 16.dp)

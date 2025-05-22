@@ -55,7 +55,6 @@ fun FoldersScreen(
     onBackClick: () -> Unit,
     currentUser: User?,
     onUserManagementClick: () -> Unit,
-    folderRepository: FolderRepository
 ) {
     var folders by remember { mutableStateOf<List<Folder>>(emptyList()) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -68,7 +67,7 @@ fun FoldersScreen(
     LaunchedEffect(Unit) {
         try {
             isLoading = true
-            folders = folderRepository.getAllFolders()
+//            folders = folderRepository.getAllFolders()
         } catch (e: Exception) {
             scope.launch {
                 snackbarHostState.showSnackbar("Failed to load folders: ${e.message}")
@@ -138,8 +137,8 @@ fun FoldersScreen(
                             snackbarHostState.showSnackbar("Folder name cannot be empty")
                             return@launch
                         }
-                        folderRepository.createFolder(name)
-                        folders = folderRepository.getAllFolders()
+//                        folderRepository.createFolder(name)
+//                        folders = folderRepository.getAllFolders()
                         showAddDialog = false
                         snackbarHostState.showSnackbar("Folder created successfully")
                     } catch (e: Exception) {
@@ -161,8 +160,8 @@ fun FoldersScreen(
                             snackbarHostState.showSnackbar("Folder name cannot be empty")
                             return@launch
                         }
-                        folderRepository.updateFolder(folder.id, name)
-                        folders = folderRepository.getAllFolders()
+//                        folderRepository.updateFolder(folder.id, name)
+//                        folders = folderRepository.getAllFolders()
                         showEditDialog = null
                         snackbarHostState.showSnackbar("Folder updated successfully")
                     } catch (e: Exception) {
@@ -183,8 +182,8 @@ fun FoldersScreen(
                     onClick = {
                         scope.launch {
                             try {
-                                folderRepository.deleteFolder(folder.id)
-                                folders = folderRepository.getAllFolders()
+//                                folderRepository.deleteFolder(folder.id)
+//                                folders = folderRepository.getAllFolders()
                                 showDeleteDialog = null
                                 snackbarHostState.showSnackbar("Folder deleted successfully")
                             } catch (e: Exception) {

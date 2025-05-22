@@ -55,7 +55,6 @@ fun DocumentsScreen(
     folderId: String,
     onBackClick: () -> Unit,
     onDocumentClick: (Document) -> Unit,
-    documentRepository: DocumentRepository
 ) {
     var documents by remember { mutableStateOf<List<Document>>(emptyList()) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -68,7 +67,7 @@ fun DocumentsScreen(
     LaunchedEffect(folderId) {
         try {
             isLoading = true
-            documents = documentRepository.getDocumentsByFolder(folderId)
+//            documents = documentRepository.getDocumentsByFolder(folderId)
         } catch (e: Exception) {
             scope.launch {
                 snackbarHostState.showSnackbar("Failed to load documents: ${e.message}")
@@ -135,8 +134,8 @@ fun DocumentsScreen(
                             snackbarHostState.showSnackbar("Document name cannot be empty")
                             return@launch
                         }
-                        documentRepository.createDocument(folderId, name, content)
-                        documents = documentRepository.getDocumentsByFolder(folderId)
+//                        documentRepository.createDocument(folderId, name, content)
+//                        documents = documentRepository.getDocumentsByFolder(folderId)
                         showAddDialog = false
                         snackbarHostState.showSnackbar("Document created successfully")
                     } catch (e: Exception) {
@@ -158,8 +157,8 @@ fun DocumentsScreen(
                             snackbarHostState.showSnackbar("Document name cannot be empty")
                             return@launch
                         }
-                        documentRepository.updateDocument(document.id, name, content)
-                        documents = documentRepository.getDocumentsByFolder(folderId)
+//                        documentRepository.updateDocument(document.id, name, content)
+//                        documents = documentRepository.getDocumentsByFolder(folderId)
                         showEditDialog = null
                         snackbarHostState.showSnackbar("Document updated successfully")
                     } catch (e: Exception) {
@@ -180,8 +179,8 @@ fun DocumentsScreen(
                     onClick = {
                         scope.launch {
                             try {
-                                documentRepository.deleteDocument(document.id)
-                                documents = documentRepository.getDocumentsByFolder(folderId)
+//                                documentRepository.deleteDocument(document.id)
+//                                documents = documentRepository.getDocumentsByFolder(folderId)
                                 showDeleteDialog = null
                                 snackbarHostState.showSnackbar("Document deleted successfully")
                             } catch (e: Exception) {
