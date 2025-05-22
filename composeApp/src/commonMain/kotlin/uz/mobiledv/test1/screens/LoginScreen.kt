@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import uz.mobiledv.test1.model.User
@@ -54,7 +55,7 @@ fun LoginScreen(
 
         OutlinedTextField(
             value = username,
-            onValueChange = { 
+            onValueChange = {
                 username = it
                 error = null
             },
@@ -68,7 +69,7 @@ fun LoginScreen(
 
         OutlinedTextField(
             value = password,
-            onValueChange = { 
+            onValueChange = {
                 password = it
                 error = null
             },
@@ -100,22 +101,43 @@ fun LoginScreen(
                     error = "Password cannot be empty"
                     return@Button
                 }
-                
+                viewModel.login(username, password)
                 isLoading = true
                 error = null
 
-//                scope.launch {
-//                    try {
-//                        onLoginSuccess(userRepository.login(username, password))
-//                    } catch (e: Exception) {
-//                        error = "An error occurred: ${e.message}"
-//                        isLoading = false
-//                    }
-//                }
+                scope.launch {
+                    try {
+
+                    } catch (e: Exception) {
+
+                        isLoading = false
+                    }
+                }
             },
             enabled = !isLoading && username.isNotBlank() && password.isNotBlank(),
             modifier = Modifier.padding(top = 16.dp)
         ) {
+            val state = viewModel.loginUiState.collectAsStateWithLifecycle()
+            val user = viewModel.loggedInUser.collectAsStateWithLifecycle()
+            when (state.value) {
+                is LoginUiState.Error -> {
+                    isLoading = false
+                    error = (state.value as LoginUiState.Error).message
+                }
+
+                LoginUiState.Idle -> {
+                    // Do nothing
+                }
+
+                LoginUiState.Loading -> {
+                    isLoading = true
+                }
+
+                is LoginUiState.Success -> {
+                    isLoading = false
+                    user.value?.let { onLoginSuccess(it) }
+                }
+            }
             if (isLoading) {
                 CircularProgressIndicator(
                     color = MaterialTheme.colorScheme.onPrimary,

@@ -223,6 +223,7 @@ class DocumentRepositoryImpl(
             data = folder.toAppwriteCreateData(),
             permissions = folder.permissions // Pass permissions if defined in model
         )
+
         response.toKmpFolder()
     }
 
