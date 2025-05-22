@@ -8,7 +8,6 @@ plugins {
     alias(libs.plugins.jetbrainsCompose)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.jetbrains.kotlin.serialization)
-    alias(libs.plugins.google.gms.google.services)
 }
 
 kotlin {
@@ -31,13 +30,8 @@ kotlin {
             implementation(libs.koin.android)
             implementation(libs.koin.androidx.compose)
 
-            // Firebase Bill of Materials (BoM) - Recommended
-            implementation(platform("com.google.firebase:firebase-bom:33.13.0")) // Check for latest BoM
+            implementation(libs.ktor.client.okhttp)
 
-            // Declare Firebase library dependencies without versions (BoM manages them)
-            implementation(libs.firebase.analytics.ktx) // Example
-            implementation(libs.firebase.firestore.ktx)
-            implementation(libs.firebase.auth.ktx) // If using auth
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -57,11 +51,15 @@ kotlin {
             implementation(libs.koin.compose.viewmodel)
             api(libs.koin.core)
 
-            implementation(libs.firebase.firestore) // Check for the latest version
-            implementation(libs.firebase.storage)
-            // Other common dependencies like coroutines, serialization
+            // Ktor Core and Content Negotiation
+            implementation(libs.bundles.ktor)
+
+            // Coroutines
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.kotlinx.coroutines.play.services) // Use the latest stable version
+//            implementation(libs.kotlinx.coroutines.play.services) // Use the latest stable version
+
+            // Appwrite SDK (provides client and models)
+            implementation("io.appwrite:sdk-for-kotlin:5.0.1")
 
         }
         commonTest.dependencies {
@@ -72,6 +70,9 @@ kotlin {
             implementation(libs.kotlinx.coroutines.swing)
 
             implementation(libs.slf4j.simple)
+            // Ktor client for Desktop (CIO engine)
+            implementation(libs.ktor.client.okhttp)
+            implementation("io.ktor:ktor-client-cio:2.3.11")
         }
     }
 }
