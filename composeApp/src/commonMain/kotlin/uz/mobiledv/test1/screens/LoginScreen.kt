@@ -2,12 +2,17 @@ package uz.mobiledv.test1.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -15,7 +20,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,19 +44,11 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var passwordVisible by remember { mutableStateOf(false) }
+    var rememberMe by remember { mutableStateOf(viewModel.lastLoggedInEmail != null) } //
 
     val scope = rememberCoroutineScope()
 
-    // Observe the UI state from the ViewModel
     val loginState by viewModel.loginUiState.collectAsStateWithLifecycle()
-
-    // Handle navigation or other side effects based on login state
-    LaunchedEffect(loginState) {
-        if (loginState is LoginUiState.Success) {
-            onLoginSuccess((loginState as LoginUiState.Success).user)
-            viewModel.resetState() // Reset state after navigation
-        }
-    }
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -100,15 +96,25 @@ fun LoginScreen(
                     )
                 }
             },
-            isError = loginState is LoginUiState.Error,
-            singleLine = true
+            isError = error != null
         )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = rememberMe,
+                onCheckedChange = { rememberMe = it }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Remember Email")
+        }
 
         if (loginState is LoginUiState.Error) {
             Text(
                 text = (loginState as LoginUiState.Error).message,
                 color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium, // Adjusted style
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
@@ -116,21 +122,46 @@ fun LoginScreen(
 
         Button(
             onClick = {
-                if (username.isNotBlank() && password.isNotBlank()) {
-                    viewModel.login(username, password)
+                if (username.isBlank()) {
+                    error = "Username cannot be empty"
+                    return@Button
                 }
-
-                viewModel.login(username, password)
+                if (password.isBlank()) {
+                    error = "Password cannot be empty"
+                    return@Button
+                }
+                viewModel.login(username, password,true)
                 isLoading = true
                 error = null
             },
-            enabled = loginState !is LoginUiState.Loading && username.isNotBlank() && password.isNotBlank(),
+            enabled = !isLoading && username.isNotBlank() && password.isNotBlank(),
             modifier = Modifier.padding(top = 16.dp)
         ) {
-            if (loginState is LoginUiState.Loading) {
+            val state = viewModel.loginUiState.collectAsStateWithLifecycle()
+            val user = viewModel.loggedInUser.collectAsStateWithLifecycle()
+            when (state.value) {
+                is LoginUiState.Error -> {
+                    isLoading = false
+                    error = (state.value as LoginUiState.Error).message
+                }
+
+                LoginUiState.Idle -> {
+                    // Do nothing
+                }
+
+                LoginUiState.Loading -> {
+                    isLoading = true
+                }
+
+                is LoginUiState.Success -> {
+                    isLoading = false
+                    user.value?.let { onLoginSuccess(it) }
+                }
+            }
+            if (isLoading) {
                 CircularProgressIndicator(
                     color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             } else {
                 Text("Login")
