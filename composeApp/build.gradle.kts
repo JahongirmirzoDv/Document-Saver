@@ -32,6 +32,8 @@ kotlin {
 
             implementation(libs.ktor.client.okhttp)
 
+
+
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -71,8 +73,11 @@ kotlin {
 
             implementation(libs.slf4j.simple)
             // Ktor client for Desktop (CIO engine)
-            implementation(libs.ktor.client.okhttp)
-            implementation("io.ktor:ktor-client-cio:2.3.11")
+            // Ktor client dependencies for Desktop
+            implementation("io.ktor:ktor-client-core:2.3.11")      // Ensures HttpTimeout and other core features are present
+            implementation("io.ktor:ktor-client-cio:2.3.11")      // The CIO engine you are using
+            implementation("io.ktor:ktor-client-logging:2.3.11")  // For the Logging plugin
+
         }
     }
 }

@@ -28,6 +28,9 @@ import io.appwrite.Query
 import io.ktor.client.call.body
 import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.http.ContentType
+import kotlinx.coroutines.delay
+import uz.mobiledv.test1.appwrite.APPWRITE_ENDPOINT
+import uz.mobiledv.test1.appwrite.APPWRITE_PROJECT_ID
 import uz.mobiledv.test1.mapper.toKmpDocument
 import uz.mobiledv.test1.mapper.toKmpDocumentList
 import uz.mobiledv.test1.mapper.toKmpFolder
@@ -38,13 +41,27 @@ interface DocumentRepository {
     // USER OPERATIONS
     // Assuming 'emailOrUsername' is used for login, and password.
     // The original 'phoneNumber' in login is ambiguous for typical Appwrite email/password.
-    suspend fun login(email: String, password: String): Result<User> // Changed phoneNumber to email for clarity
+    suspend fun login(
+        email: String,
+        password: String
+    ): Result<User> // Changed phoneNumber to email for clarity
+
     suspend fun getCurrentUser(): Result<User?> // New: to get currently logged-in user
     suspend fun logout(): Result<Unit> // New: to log out
     suspend fun createUser(user: User): Result<User> // Return created user
     suspend fun deleteUser(userId: String): Result<Unit> // Use Appwrite User ID
-    suspend fun updateUser(userId: String, name: String?, email: String?, phoneNumber: String?): Result<User> // Update specific fields
-    suspend fun updateUserPrefs(userId: String, prefs: uz.mobiledv.test1.model.UserPrefs): Result<User>
+    suspend fun updateUser(
+        userId: String,
+        name: String?,
+        email: String?,
+        phoneNumber: String?
+    ): Result<User> // Update specific fields
+
+    suspend fun updateUserPrefs(
+        userId: String,
+        prefs: uz.mobiledv.test1.model.UserPrefs
+    ): Result<User>
+
     fun getUsers(): Flow<List<User>> // Or suspend fun getUsers(): Result<List<User>> for non-realtime
 
     // FOLDER OPERATIONS (Consider if these should solely be in FolderRepository)
@@ -68,10 +85,22 @@ interface DocumentRepository {
 
     suspend fun getDocumentsByFolder(folderId: String): Result<List<Document>> // Changed to Result
     suspend fun createDocumentMetadata(document: Document): Result<Document> // For metadata-only docs
+
     // updateDocument with content might imply replacing file or updating text content
-    suspend fun updateTextDocumentContent(documentId: String, newName: String, newContent: String): Result<Document>
-    suspend fun deleteDocument(documentId: String, appwriteFileId: String?): Result<Unit> // Needs Appwrite file ID for storage deletion
+    suspend fun updateTextDocumentContent(
+        documentId: String,
+        newName: String,
+        newContent: String
+    ): Result<Document>
+
+    suspend fun deleteDocument(
+        documentId: String,
+        appwriteFileId: String?
+    ): Result<Unit> // Needs Appwrite file ID for storage deletion
+
     suspend fun getDocumentById(documentId: String): Result<Document?>
+
+    suspend fun getSessions()
 }
 
 class DocumentRepositoryImpl(
@@ -83,11 +112,20 @@ class DocumentRepositoryImpl(
     private val appwriteClient: Client // To get JWT for Ktor calls
 ) : DocumentRepository {
 
+    override suspend fun getSessions() {
+//        val sessions = account.getSession(APPWRITE_PROJECT_ID)
+//        val listSessions = account.listSessions()
+//        println("Appwrite Sessions: ${sessions}")
+//        println("Appwrite Sessions List: ${listSessions.sessions}")
+    }
+
     // --- USER OPERATIONS ---
     override suspend fun login(email: String, password: String): Result<User> = runCatching {
         try {
-            account.createEmailPasswordSession(email, password)
+            val session = account.createEmailPasswordSession(email,password)
+            println(session.id + "session id")
             // Session created, now get user details
+            delay(10_000)
             val appwriteUser = account.get() // Fetches io.appwrite.models.User
             // Map to your app's User model
             User(
@@ -134,14 +172,17 @@ class DocumentRepositoryImpl(
         // Create Appwrite auth user
         val createdAppwriteUser = account.create(
             userId = user.id.ifBlank { ID.unique() }, // Use provided ID or generate
-            email = user.email ?: throw IllegalArgumentException("Email is required for user creation"),
+            email = user.email
+                ?: throw IllegalArgumentException("Email is required for user creation"),
             password = user.password ?: throw IllegalArgumentException("Password is required"),
             name = user.username.ifBlank { null }
         )
 
         // Update preferences like isAdmin if needed
         if (user.isAdmin) {
-            val prefsToUpdate = UserPrefs(isAdmin = true, customUsername = user.username.takeIf { it != createdAppwriteUser.name })
+            val prefsToUpdate = UserPrefs(
+                isAdmin = true,
+                customUsername = user.username.takeIf { it != createdAppwriteUser.name })
             account.updatePrefs(prefs = prefsToUpdate)
         }
 
@@ -161,7 +202,12 @@ class DocumentRepositoryImpl(
         Unit
     }
 
-    override suspend fun updateUser(userId: String, name: String?, email: String?, phoneNumber: String?): Result<User> = runCatching {
+    override suspend fun updateUser(
+        userId: String,
+        name: String?,
+        email: String?,
+        phoneNumber: String?
+    ): Result<User> = runCatching {
         // Note: Updating email via SDK might require user to re-verify.
         // These are admin operations if updating other users. If current user, use account.updateName etc.
         var updatedUser = usersApi.get(userId) // Get current state
@@ -176,23 +222,29 @@ class DocumentRepositoryImpl(
             // usersApi.updatePhone(userId, phoneNumber) // check SDK
         }
         // Map back to your User model
-        User(id = updatedUser.id, username = updatedUser.name ?: "", email = updatedUser.email, phoneNumber = updatedUser.phone)
-    }
-
-    override suspend fun updateUserPrefs(userId: String, prefs: UserPrefs): Result<User> = runCatching {
-        // If updating current user's prefs:
-        // val currentAppwriteUser = account.updatePrefs(prefs)
-        // For other users (admin):
-        usersApi.updatePrefs(userId, prefs)
-        val currentUser = usersApi.get(userId)
         User(
-            id = currentUser.id,
-            username = currentUser.name ?: "",
-            email = currentUser.email,
-            isAdmin = currentUser.prefs.data["isAdmin"] as? Boolean ?: false,
-            phoneNumber = currentUser.phone
+            id = updatedUser.id,
+            username = updatedUser.name ?: "",
+            email = updatedUser.email,
+            phoneNumber = updatedUser.phone
         )
     }
+
+    override suspend fun updateUserPrefs(userId: String, prefs: UserPrefs): Result<User> =
+        runCatching {
+            // If updating current user's prefs:
+            // val currentAppwriteUser = account.updatePrefs(prefs)
+            // For other users (admin):
+            usersApi.updatePrefs(userId, prefs)
+            val currentUser = usersApi.get(userId)
+            User(
+                id = currentUser.id,
+                username = currentUser.name ?: "",
+                email = currentUser.email,
+                isAdmin = currentUser.prefs.data["isAdmin"] as? Boolean ?: false,
+                phoneNumber = currentUser.phone
+            )
+        }
 
 
     // Requires Admin/Server API Key or specific permissions
@@ -204,7 +256,8 @@ class DocumentRepositoryImpl(
                     id = appwriteUser.id,
                     username = appwriteUser.name ?: "",
                     email = appwriteUser.email,
-                    isAdmin = appwriteUser.prefs.data["isAdmin"] as? Boolean ?: false, // Adjust path to isAdmin
+                    isAdmin = appwriteUser.prefs.data["isAdmin"] as? Boolean
+                        ?: false, // Adjust path to isAdmin
                     phoneNumber = appwriteUser.phone
                 )
             })
@@ -219,7 +272,7 @@ class DocumentRepositoryImpl(
         val response = databases.createDocument(
             databaseId = APPWRITE_DATABASE_ID,
             collectionId = APPWRITE_FOLDERS_COLLECTION_ID,
-            documentId = folder.id.ifBlank{ ID.unique() },
+            documentId = folder.id.ifBlank { ID.unique() },
             data = folder.toAppwriteCreateData(),
             permissions = folder.permissions // Pass permissions if defined in model
         )
@@ -257,7 +310,8 @@ class DocumentRepositoryImpl(
                     name = doc.data["name"] as String,
                     createdBy = doc.data["createdBy"] as String,
                     createdAt = doc.data["\$createdAt"] as String?,
-                    description = doc.data["description"] as? String ?: "", // Example: mapping permissions
+                    description = doc.data["description"] as? String
+                        ?: "", // Example: mapping permissions
                 )
             }
             emit(folders)
@@ -274,7 +328,8 @@ class DocumentRepositoryImpl(
         mimeType: String?
     ): Result<Document> = runCatching {
         // 1. Upload file to Appwrite Storage
-        val inputFile = InputFile.fromBytes(fileBytes, filename = fileName, mimeType = mimeType.orEmpty())
+        val inputFile =
+            InputFile.fromBytes(fileBytes, filename = fileName, mimeType = mimeType.orEmpty())
         val uploadedFile = storage.createFile(
             bucketId = APPWRITE_FILES_BUCKET_ID,
             fileId = ID.unique(),
@@ -302,16 +357,17 @@ class DocumentRepositoryImpl(
     // Example of file upload using Ktor (more direct REST, bypasses Appwrite SDK's InputFile)
     // This can be an alternative if InputFile is tricky or for specific header control.
 
-    override suspend fun updateDocumentMetadata(document: Document): Result<Document> = runCatching {
-        val response = databases.updateDocument(
-            databaseId = APPWRITE_DATABASE_ID,
-            collectionId = APPWRITE_DOCUMENTS_COLLECTION_ID,
-            documentId = document.id,
-            data = document.toAppwriteCreateData(), // Only send fields to update
-            permissions = document.permissions
-        )
-        response.toKmpDocument()
-    }
+    override suspend fun updateDocumentMetadata(document: Document): Result<Document> =
+        runCatching {
+            val response = databases.updateDocument(
+                databaseId = APPWRITE_DATABASE_ID,
+                collectionId = APPWRITE_DOCUMENTS_COLLECTION_ID,
+                documentId = document.id,
+                data = document.toAppwriteCreateData(), // Only send fields to update
+                permissions = document.permissions
+            )
+            response.toKmpDocument()
+        }
 
     override fun getDocuments(folderId: String): Flow<List<Document>> = flow {
         try {
@@ -333,27 +389,33 @@ class DocumentRepositoryImpl(
         )
     }
 
-    override suspend fun getDocumentsByFolder(folderId: String): Result<List<Document>> = runCatching {
-        val response = databases.listDocuments(
-            databaseId = APPWRITE_DATABASE_ID,
-            collectionId = APPWRITE_DOCUMENTS_COLLECTION_ID,
-            queries = listOf(Query.equal("folderId", folderId))
-        )
-        response.toKmpDocumentList()
-    }
+    override suspend fun getDocumentsByFolder(folderId: String): Result<List<Document>> =
+        runCatching {
+            val response = databases.listDocuments(
+                databaseId = APPWRITE_DATABASE_ID,
+                collectionId = APPWRITE_DOCUMENTS_COLLECTION_ID,
+                queries = listOf(Query.equal("folderId", folderId))
+            )
+            response.toKmpDocumentList()
+        }
 
-    override suspend fun createDocumentMetadata(document: Document): Result<Document> = runCatching {
-        val response = databases.createDocument(
-            databaseId = APPWRITE_DATABASE_ID,
-            collectionId = APPWRITE_DOCUMENTS_COLLECTION_ID,
-            documentId = document.id.ifBlank { ID.unique() },
-            data = document.toAppwriteCreateData(),
-            permissions = document.permissions
-        )
-        response.toKmpDocument()
-    }
+    override suspend fun createDocumentMetadata(document: Document): Result<Document> =
+        runCatching {
+            val response = databases.createDocument(
+                databaseId = APPWRITE_DATABASE_ID,
+                collectionId = APPWRITE_DOCUMENTS_COLLECTION_ID,
+                documentId = document.id.ifBlank { ID.unique() },
+                data = document.toAppwriteCreateData(),
+                permissions = document.permissions
+            )
+            response.toKmpDocument()
+        }
 
-    override suspend fun updateTextDocumentContent(documentId: String, newName: String, newContent: String): Result<Document> = runCatching {
+    override suspend fun updateTextDocumentContent(
+        documentId: String,
+        newName: String,
+        newContent: String
+    ): Result<Document> = runCatching {
         val dataToUpdate = mapOf(
             "name" to newName,
             "content" to newContent
@@ -367,28 +429,29 @@ class DocumentRepositoryImpl(
         response.toKmpDocument()
     }
 
-    override suspend fun deleteDocument(documentId: String, appwriteFileId: String?): Result<Unit> = runCatching {
-        // 1. Delete metadata from Databases
-        databases.deleteDocument(
-            databaseId = APPWRITE_DATABASE_ID,
-            collectionId = APPWRITE_DOCUMENTS_COLLECTION_ID,
-            documentId = documentId
-        )
+    override suspend fun deleteDocument(documentId: String, appwriteFileId: String?): Result<Unit> =
+        runCatching {
+            // 1. Delete metadata from Databases
+            databases.deleteDocument(
+                databaseId = APPWRITE_DATABASE_ID,
+                collectionId = APPWRITE_DOCUMENTS_COLLECTION_ID,
+                documentId = documentId
+            )
 
-        // 2. Delete file from Storage if appwriteFileId is provided
-        if (!appwriteFileId.isNullOrBlank()) {
-            try {
-                storage.deleteFile(
-                    bucketId = APPWRITE_FILES_BUCKET_ID,
-                    fileId = appwriteFileId
-                )
-            } catch (e: AppwriteException) {
-                // Log error or handle (e.g., file might already be deleted or permissions issue)
-                System.err.println("Failed to delete file $appwriteFileId from storage: ${e.message}")
+            // 2. Delete file from Storage if appwriteFileId is provided
+            if (!appwriteFileId.isNullOrBlank()) {
+                try {
+                    storage.deleteFile(
+                        bucketId = APPWRITE_FILES_BUCKET_ID,
+                        fileId = appwriteFileId
+                    )
+                } catch (e: AppwriteException) {
+                    // Log error or handle (e.g., file might already be deleted or permissions issue)
+                    System.err.println("Failed to delete file $appwriteFileId from storage: ${e.message}")
+                }
             }
+            Unit
         }
-        Unit
-    }
 
     override suspend fun getDocumentById(documentId: String): Result<Document?> = runCatching {
         try {

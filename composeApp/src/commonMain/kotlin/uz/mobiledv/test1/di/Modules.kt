@@ -3,6 +3,7 @@ package uz.mobiledv.test1.di
 import io.appwrite.services.Account
 import io.appwrite.services.Databases
 import io.appwrite.services.Storage
+import io.appwrite.services.Users
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import uz.mobiledv.test1.appwrite.AppwriteInstance
@@ -33,6 +34,7 @@ val sharedModule = module {
     single { Account(get()) }         // Provide Appwrite Account service
     single { Databases(get()) } // Provide Appwrite Databases service
     single { Storage(get()) }          // Provide Appwrite Storage service
+    single { Users(get()) }            // <<<< ADD THIS LINE
     single { KtorClientInstance.httpClient } // Provide Ktor HttpClient
 
     //single<UserRepository> { UserRepositoryImpl(get(), get()) } // Pass Account and Ktor client

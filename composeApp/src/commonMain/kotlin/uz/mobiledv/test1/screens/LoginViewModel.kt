@@ -2,6 +2,7 @@ package uz.mobiledv.test1.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,7 +21,8 @@ class LoginViewModel(
     val loggedInUser: StateFlow<User?> = _loggedInUser.asStateFlow()
 
     fun login(email: String, password: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
+            documentRepository.getSessions()
             _loginUiState.value = LoginUiState.Loading
             val result = documentRepository.login(email, password) // Using the injected repository
             result.fold(
