@@ -31,7 +31,8 @@ kotlin {
             implementation(libs.koin.androidx.compose)
 
             implementation(libs.ktor.client.okhttp)
-
+            implementation(libs.ktor.client.logging)
+            implementation(libs.multiplatformSettings.noArg) // For Android
 
 
         }
@@ -63,6 +64,9 @@ kotlin {
             // Appwrite SDK (provides client and models)
             implementation("io.appwrite:sdk-for-kotlin:5.0.1")
 
+            implementation(libs.multiplatformSettings.noArg) // Common dependency
+            implementation(libs.multiplatformSettings.coroutines) // Optional for coroutines support
+
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -77,6 +81,7 @@ kotlin {
             implementation("io.ktor:ktor-client-core:2.3.11")      // Ensures HttpTimeout and other core features are present
             implementation("io.ktor:ktor-client-cio:2.3.11")      // The CIO engine you are using
             implementation("io.ktor:ktor-client-logging:2.3.11")  // For the Logging plugin
+            implementation(libs.multiplatformSettings.noArg) // For Desktop (uses Java Preferences)
 
         }
     }
