@@ -62,7 +62,7 @@ kotlin {
 
             // Coroutines
             implementation(libs.kotlinx.coroutines.core)
-//            implementation(libs.kotlinx.coroutines.play.services) // Use the latest stable version
+            // implementation(libs.kotlinx.coroutines.play.services) // Use the latest stable version
 
             // Supabase
             implementation(project.dependencies.platform("io.github.jan-tennert.supabase:bom:3.1.4"))
