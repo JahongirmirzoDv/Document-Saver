@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 import uz.mobiledv.test1.AppViewModel
 import uz.mobiledv.test1.model.User
@@ -44,6 +45,7 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var passwordVisible by remember { mutableStateOf(false) }
+    var rememberMe by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -93,7 +95,17 @@ fun LoginScreen(
             },
             isError = error != null
         )
-
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = rememberMe,
+                onCheckedChange = { rememberMe = it }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Remember Email")
+        }
 
         Button(
             onClick = {
@@ -105,7 +117,7 @@ fun LoginScreen(
                     error = "Password cannot be empty"
                     return@Button
                 }
-                viewModel.login(username, password)
+                viewModel.login(username, password,rememberMe)
                 isLoading = true
                 error = null
 
@@ -124,4 +136,4 @@ fun LoginScreen(
             }
         }
     }
-} 
+}

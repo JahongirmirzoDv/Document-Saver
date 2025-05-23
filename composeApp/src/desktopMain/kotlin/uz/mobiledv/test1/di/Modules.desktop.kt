@@ -1,9 +1,8 @@
 package uz.mobiledv.test1.di
 
+import com.russhwolf.settings.PreferencesSettings
 import com.russhwolf.settings.Settings
-import org.koin.core.module.Module
 import org.koin.dsl.module
-import uz.mobiledv.test1.screens.LoginViewModel
 import java.util.prefs.Preferences
 
 

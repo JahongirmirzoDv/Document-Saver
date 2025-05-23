@@ -31,14 +31,15 @@ class AppViewModel(
                     this.password = password
                 }
             }.onSuccess {
-                loginAlert.value = "Successfully registered! Check your E-Mail to verify your account."
+                loginAlert.value =
+                    "Successfully registered! Check your E-Mail to verify your account."
             }.onFailure {
                 loginAlert.value = "There was an error while registering: ${it.message}"
             }
         }
     }
 
-    fun login(email: String, password: String) {
+    fun login(email: String, password: String, rememberMe: Boolean) {
         viewModelScope.launch {
             kotlin.runCatching {
                 supabaseClient.auth.signInWith(Email) {
@@ -47,7 +48,8 @@ class AppViewModel(
                 }
             }.onFailure {
                 it.printStackTrace()
-                loginAlert.value = "There was an error while logging in. Check your credentials and try again."
+                loginAlert.value =
+                    "There was an error while logging in. Check your credentials and try again."
             }
         }
     }

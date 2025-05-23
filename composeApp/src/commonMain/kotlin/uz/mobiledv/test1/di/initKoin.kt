@@ -11,8 +11,6 @@ fun initKoin(config: KoinAppDeclaration? = null) {
             platformModule,
             viewModelsModule,
             supabaseStorageModule,
-            supabaseAuthModule,
-            supabasePostgrestModule
         )
     }
 }

@@ -19,6 +19,7 @@ val sharedModule = module {
             coerceInputValues = true
         }
     }
+    single { KtorClientInstance.httpClient }
 
     single<AuthSettings> { AuthSettingsImpl(get(),get()) } // Koin will inject the platform-specific Settings
 }

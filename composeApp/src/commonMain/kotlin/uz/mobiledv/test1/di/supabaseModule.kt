@@ -30,34 +30,10 @@ val supabaseStorageModule = module {
                     cache = SettingsResumableCache()
                 }
             }
-        }
-    }
-    single {
-        get<SupabaseClient>().storage[BUCKET].resumable
-    }
-}
-
-expect fun AuthConfig.platformGoTrueConfig()
-
-val supabaseAuthModule = module {
-    single {
-        createSupabaseClient(
-            supabaseUrl = URL,
-            supabaseKey = KEY
-        ) {
             install(Auth) {
                 platformGoTrueConfig()
             }
-        }
-    }
-}
 
-val supabasePostgrestModule = module {
-    single {
-        createSupabaseClient(
-            supabaseUrl = URL,
-            supabaseKey = KEY
-        ) {
             defaultLogLevel = LogLevel.DEBUG
             install(Postgrest)
             install(Auth) {
@@ -67,4 +43,9 @@ val supabasePostgrestModule = module {
             install(Realtime)
         }
     }
+    single {
+        get<SupabaseClient>().storage[BUCKET].resumable
+    }
 }
+
+expect fun AuthConfig.platformGoTrueConfig()

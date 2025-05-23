@@ -34,8 +34,7 @@ kotlin {
             implementation(libs.koin.androidx.compose)
 
             implementation(libs.ktor.client.okhttp)
-            implementation(libs.ktor.client.logging) // Ktor logging
-            implementation(libs.multiplatformSettings.noArg) // For Android SharedPreferences
+            implementation(libs.multiplatformSettings.noArg)
 
 
         }
@@ -58,7 +57,11 @@ kotlin {
             api(libs.koin.core)
 
             // Ktor Core and Content Negotiation
-            implementation(libs.bundles.ktor)
+//            implementation(libs.bundles.ktor)
+
+            api(libs.ktor.client.core)                 // Core Ktor client functionality
+            api(libs.ktor.client.content.negotiation)  // For handling JSON, XML, etc.
+            api(libs.ktor.client.logging)
 
             // Coroutines
             implementation(libs.kotlinx.coroutines.core)
@@ -85,9 +88,9 @@ kotlin {
             implementation(libs.slf4j.simple)
             // Ktor client for Desktop (CIO engine)
             // Ktor client dependencies for Desktop
-            implementation("io.ktor:ktor-client-core:2.3.11")      // Ensures HttpTimeout and other core features are present
-            implementation("io.ktor:ktor-client-cio:2.3.11")      // The CIO engine you are using
-            implementation("io.ktor:ktor-client-logging:2.3.11")  // For the Logging plugin
+            implementation("io.ktor:ktor-client-core:3.0.0")      // Ensures HttpTimeout and other core features are present
+            implementation("io.ktor:ktor-client-cio:3.0.0")      // The CIO engine you are using
+            implementation("io.ktor:ktor-client-logging:3.0.0")  // For the Logging plugin
             implementation(libs.multiplatformSettings.noArg) // For Desktop (uses Java Preferences)
 
         }

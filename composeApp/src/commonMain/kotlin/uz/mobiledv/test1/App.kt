@@ -19,6 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import io.github.jan.supabase.auth.status.SessionStatus
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
+import uz.mobiledv.test1.screens.FoldersScreen
 import uz.mobiledv.test1.screens.LoginScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,13 +32,12 @@ fun App() {
 
         val viewModel: AppViewModel = koinViewModel()
 
-        val loginAlert by viewModel.loginAlert.collectAsStateWithLifecycle()
         val sessionStatus by viewModel.sessionStatus.collectAsStateWithLifecycle()
         println(sessionStatus)
 
-        var route by remember { mutableStateOf("login") }
+        var route by remember { mutableStateOf("") }
 
-        route = when(sessionStatus) {
+        route = when (sessionStatus) {
             is SessionStatus.Authenticated -> {
                 "folders"
             }
@@ -46,24 +46,27 @@ fun App() {
                 "login"
             }
 
-            SessionStatus.Initializing -> TODO()
-            is SessionStatus.RefreshFailure -> TODO()
-        }
-
-
-        NavHost(navController, startDestination = route) {
-            composable("login") {
-                LoginScreen(
-                    onLoginSuccess = { user ->
-                        navController.navigate("folders") {
-                            popUpTo("login") { inclusive = true }
-                        }
-                    },
-                )
+            else -> {
+                "login"
             }
-            composable("folders") {
-                Box(modifier = Modifier.fillMaxSize(),contentAlignment = Alignment.Center){
-                    Text("Folders Screen")
+        }
+        if (route.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Loading...")
+            }
+        } else {
+            NavHost(navController, startDestination = route) {
+                composable("login") {
+                    LoginScreen(
+                        onLoginSuccess = { user ->
+                            navController.navigate("folders") {
+                                popUpTo("login") { inclusive = true }
+                            }
+                        },
+                    )
+                }
+                composable("folders") {
+                    FoldersScreen()
                 }
             }
         }
