@@ -2,51 +2,22 @@
 
 package uz.mobiledv.test1.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import org.koin.compose.viewmodel.koinViewModel
 import uz.mobiledv.test1.model.Folder
 import uz.mobiledv.test1.model.User
-import uz.mobiledv.test1.repository.FolderRepository
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,36 +25,43 @@ fun FoldersScreen(
     onFolderClick: (Folder) -> Unit,
     onBackClick: () -> Unit,
     onUserManagementClick: () -> Unit,
+    viewModel: FoldersViewModel = koinViewModel()
 ) {
-    var folders by remember { mutableStateOf<List<Folder>>(emptyList()) }
+    val foldersUiState by viewModel.foldersUiState.collectAsStateWithLifecycle()
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle() // For dialogs if needed
+
     var showAddDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf<Folder?>(null) }
     var showDeleteDialog by remember { mutableStateOf<Folder?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-
-
-
     LaunchedEffect(Unit) {
-        try {
-            isLoading = true
-//            folders = folderRepository.getAllFolders()
-        } catch (e: Exception) {
-            scope.launch {
-                snackbarHostState.showSnackbar("Failed to load folders: ${e.message}")
+        // ViewModel now loads data in its init block or via a specific load function
+        // If you need to reload based on screen parameters, call viewModel.loadFolders(param)
+    }
+
+    // Handle UI state changes for messages
+    LaunchedEffect(foldersUiState) {
+        when (val state = foldersUiState) {
+            is FoldersUiState.Error -> {
+                scope.launch {
+                    snackbarHostState.showSnackbar(state.message)
+                }
+                viewModel.resetState() // Optionally reset to avoid re-showing on config change
             }
-        } finally {
-            isLoading = false
+            else -> {} // Handle other states if needed
         }
     }
+
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Folders") },
+                title = { Text("Folders - Welcome ${currentUser?.username ?: "User"}") },
                 navigationIcon = {
+                    // Conditionally show back button if this isn't the first screen after login
+                    // For now, assuming it's always there as per original.
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.Filled.ArrowBack, "Back")
                     }
@@ -92,38 +70,73 @@ fun FoldersScreen(
                     IconButton(onClick = { showAddDialog = true }) {
                         Icon(Icons.Filled.Add, "Add Folder")
                     }
-                    IconButton(onClick = onUserManagementClick) {
-                        Icon(Icons.Filled.Person, "User Management")
+                    if (currentUser?.isAdmin == true) { // Show only if admin
+                        IconButton(onClick = onUserManagementClick) {
+                            Icon(Icons.Filled.Person, "User Management")
+                        }
                     }
                 }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        if (isLoading) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                CircularProgressIndicator()
+        when (val state = foldersUiState) {
+            is FoldersUiState.Loading -> {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator()
+                }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
-            ) {
-                items(folders) { folder ->
-                    FolderItem(
-                        folder = folder,
-                        onClick = { onFolderClick(folder) },
-                        onEdit = { showEditDialog = folder },
-                        onDelete = { showDeleteDialog = folder },
-                    )
+            is FoldersUiState.Success -> {
+                if (state.folders.isEmpty()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(padding),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text("No folders yet. Create one!")
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
+                    ) {
+                        items(state.folders) { folder ->
+                            FolderItem(
+                                folder = folder,
+                                onClick = { onFolderClick(folder) },
+                                onEdit = { showEditDialog = folder },
+                                onDelete = { showDeleteDialog = folder },
+                                // Pass isAdmin if edit/delete should be conditional
+                                // isAdmin = currentUser?.isAdmin == true
+                            )
+                        }
+                    }
+                }
+            }
+            is FoldersUiState.Error -> {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text("Error loading folders. Pull to refresh or check connection.")
+                    // Optionally add a retry button
+                    Button(onClick = { viewModel.loadFolders() }) {
+                        Text("Retry")
+                    }
+                }
+            }
+            is FoldersUiState.Idle -> {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text("Loading initial data...") // Or some placeholder
+                    CircularProgressIndicator()
                 }
             }
         }
@@ -132,21 +145,9 @@ fun FoldersScreen(
     if (showAddDialog) {
         FolderDialog(
             onDismiss = { showAddDialog = false },
-            onConfirm = { name ->
-                scope.launch {
-                    try {
-                        if (name.isBlank()) {
-                            snackbarHostState.showSnackbar("Folder name cannot be empty")
-                            return@launch
-                        }
-//                        folderRepository.createFolder(name)
-//                        folders = folderRepository.getAllFolders()
-                        showAddDialog = false
-                        snackbarHostState.showSnackbar("Folder created successfully")
-                    } catch (e: Exception) {
-                        snackbarHostState.showSnackbar("Failed to create folder: ${e.message}")
-                    }
-                }
+            onConfirm = { name, description ->
+                viewModel.createFolder(name, description)
+                showAddDialog = false // Close dialog immediately
             }
         )
     }
@@ -155,21 +156,9 @@ fun FoldersScreen(
         FolderDialog(
             folder = folder,
             onDismiss = { showEditDialog = null },
-            onConfirm = { name ->
-                scope.launch {
-                    try {
-                        if (name.isBlank()) {
-                            snackbarHostState.showSnackbar("Folder name cannot be empty")
-                            return@launch
-                        }
-//                        folderRepository.updateFolder(folder.id, name)
-//                        folders = folderRepository.getAllFolders()
-                        showEditDialog = null
-                        snackbarHostState.showSnackbar("Folder updated successfully")
-                    } catch (e: Exception) {
-                        snackbarHostState.showSnackbar("Failed to update folder: ${e.message}")
-                    }
-                }
+            onConfirm = { name, description ->
+                viewModel.updateFolder(folder.id, name, description)
+                showEditDialog = null
             }
         )
     }
@@ -178,29 +167,17 @@ fun FoldersScreen(
         AlertDialog(
             onDismissRequest = { showDeleteDialog = null },
             title = { Text("Delete Folder") },
-            text = { Text("Are you sure you want to delete folder ${folder.name}?") },
+            text = { Text("Are you sure you want to delete folder \"${folder.name}\"? This will also delete all documents inside.") },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        scope.launch {
-                            try {
-//                                folderRepository.deleteFolder(folder.id)
-//                                folders = folderRepository.getAllFolders()
-                                showDeleteDialog = null
-                                snackbarHostState.showSnackbar("Folder deleted successfully")
-                            } catch (e: Exception) {
-                                snackbarHostState.showSnackbar("Failed to delete folder: ${e.message}")
-                            }
-                        }
+                        viewModel.deleteFolder(folder.id)
+                        showDeleteDialog = null
                     }
-                ) {
-                    Text("Delete")
-                }
+                ) { Text("Delete") }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = null }) {
-                    Text("Cancel")
-                }
+                TextButton(onClick = { showDeleteDialog = null }) { Text("Cancel") }
             }
         )
     }
@@ -212,11 +189,13 @@ private fun FolderItem(
     onClick: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    // isAdmin: Boolean = false // Example if actions depend on role
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            .clickable(onClick = onClick) // Make the whole card clickable
     ) {
         Row(
             modifier = Modifier
@@ -225,70 +204,93 @@ private fun FolderItem(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Filled.Info, contentDescription = null)
-                Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                 Text(
                     text = folder.name,
                     style = MaterialTheme.typography.titleMedium
                 )
+                if (folder.description.isNotEmpty()) {
+                    Text(
+                        text = folder.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    text = "Created by: ${folder.createdBy.take(8)}... on ${folder.createdAt?.take(10)}", // Basic info
+                    style = MaterialTheme.typography.labelSmall
+                )
             }
+            // Row for action buttons
+            // if (isAdmin) { // Conditionally show buttons
             Row {
                 IconButton(onClick = onEdit) {
-                    Icon(Icons.Filled.Edit, "Edit")
+                    Icon(Icons.Filled.Edit, "Edit Folder")
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(Icons.Filled.Delete, "Delete")
+                    Icon(Icons.Filled.Delete, "Delete Folder")
                 }
             }
+            // }
         }
     }
 }
 
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FolderDialog(
     folder: Folder? = null,
     onDismiss: () -> Unit,
-    onConfirm: (name: String) -> Unit
+    onConfirm: (name: String, description: String) -> Unit
 ) {
     var name by remember { mutableStateOf(folder?.name ?: "") }
-    var showNameError by remember { mutableStateOf(false) }
+    var description by remember { mutableStateOf(folder?.description ?: "") }
+    var nameError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (folder == null) "Add Folder" else "Edit Folder") },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = {
-                    name = it
-                    showNameError = false
-                },
-                label = { Text("Folder Name") },
-                modifier = Modifier.fillMaxWidth(),
-                isError = showNameError
-            )
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = {
+                        name = it
+                        nameError = null // Clear error when user types
+                    },
+                    label = { Text("Folder Name*") },
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = nameError != null,
+                    singleLine = true
+                )
+                if (nameError != null) {
+                    Text(nameError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description (Optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 4
+                )
+            }
         },
         confirmButton = {
             TextButton(
                 onClick = {
                     if (name.isBlank()) {
-                        showNameError = true
+                        nameError = "Folder name cannot be empty."
                         return@TextButton
                     }
-                    onConfirm(name)
+                    onConfirm(name, description)
                 }
-            ) {
-                Text("Save")
-            }
+            ) { Text("Save") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
-} 
+}

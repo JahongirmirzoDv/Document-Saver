@@ -45,6 +45,7 @@ import uz.mobiledv.test1.mapper.toKmpFolderList
 import uz.mobiledv.test1.model.AppwriteDocumentList
 import javax.naming.Context
 import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -133,7 +134,7 @@ class DocumentRepositoryImpl(
     // --- USER OPERATIONS ---
     override suspend fun login(email: String, password: String): Result<User> = runCatching {
         try {
-            account.createEmailPasswordSession(email, password)
+            val session = account.createEmailPasswordSession(email, password)
             println("session id")
 
             // Session created, now get user details

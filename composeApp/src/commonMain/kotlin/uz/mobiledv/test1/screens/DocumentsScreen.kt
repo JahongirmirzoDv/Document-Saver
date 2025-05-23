@@ -3,84 +3,67 @@
 package uz.mobiledv.test1.screens
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import org.koin.compose.viewmodel.koinViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import uz.mobiledv.test1.model.Document
-import uz.mobiledv.test1.repository.DocumentRepository
+// Import ViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentsScreen(
     folderId: String,
     onBackClick: () -> Unit,
-    onDocumentClick: (Document) -> Unit,
+    onDocumentClick: (Document) -> Unit, // Keep for now, or handle click within ViewModel
+    viewModel: DocumentsViewModel = koinViewModel()
 ) {
-    var documents by remember { mutableStateOf<List<Document>>(emptyList()) }
+    val documentsUiState by viewModel.documentsUiState.collectAsStateWithLifecycle()
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+
     var showAddDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf<Document?>(null) }
     var showDeleteDialog by remember { mutableStateOf<Document?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(folderId) {
-        try {
-            isLoading = true
-//            documents = documentRepository.getDocumentsByFolder(folderId)
-        } catch (e: Exception) {
-            scope.launch {
-                snackbarHostState.showSnackbar("Failed to load documents: ${e.message}")
+    // Load documents when folderId changes or screen is first composed
+    LaunchedEffect(folderId, currentUser) {
+        // Ensure user is loaded before trying to load documents if creation depends on user ID
+        if (currentUser != null) {
+            viewModel.loadDocuments(folderId)
+        } else if (currentUser == null && viewModel.currentUser.value == null) {
+            // This might indicate an issue or that user is still loading.
+            // ViewModel's init should try to load user.
+        }
+    }
+
+    LaunchedEffect(documentsUiState) {
+        when (val state = documentsUiState) {
+            is DocumentsUiState.Error -> {
+                scope.launch {
+                    snackbarHostState.showSnackbar(state.message)
+                }
+                viewModel.resetState()
             }
-        } finally {
-            isLoading = false
+            else -> {}
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Documents") },
+                title = { Text("Documents in Folder") }, // Potentially add folder name if available
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.Filled.ArrowBack, "Back")
@@ -95,53 +78,77 @@ fun DocumentsScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        if (isLoading) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                CircularProgressIndicator()
+        when (val state = documentsUiState) {
+            is DocumentsUiState.Loading -> {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator()
+                }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
-            ) {
-                items(documents) { document ->
-                    DocumentItem(
-                        document = document,
-                        onClick = { onDocumentClick(document) },
-                        onEdit = { showEditDialog = document },
-                        onDelete = { showDeleteDialog = document }
-                    )
+            is DocumentsUiState.Success -> {
+                if (state.documents.isEmpty()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(padding),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text("No documents in this folder. Add one!")
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        items(state.documents) { document ->
+                            DocumentItem(
+                                document = document,
+                                onClick = {
+                                    // Decide if click navigates or shows details.
+                                    // For now, it could be for viewing/downloading.
+                                    onDocumentClick(document)
+                                    // Example: viewModel.downloadDocument(document.appwriteFileId)
+                                },
+                                onEdit = { showEditDialog = document },
+                                onDelete = { showDeleteDialog = document }
+                                // isAdmin = currentUser?.isAdmin == true
+                            )
+                        }
+                    }
+                }
+            }
+            is DocumentsUiState.Error -> {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text("Error loading documents.")
+                    Button(onClick = { viewModel.loadDocuments(folderId) }) {
+                        Text("Retry")
+                    }
+                }
+            }
+            is DocumentsUiState.Idle -> {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text("Select a folder to see documents.")
                 }
             }
         }
     }
 
     if (showAddDialog) {
-        DocumentDialog(
+        DocumentDialog( // Assuming you have a file picker mechanism for fileBytes
             onDismiss = { showAddDialog = false },
-            onConfirm = { name, content ->
-                scope.launch {
-                    try {
-                        if (name.isBlank()) {
-                            snackbarHostState.showSnackbar("Document name cannot be empty")
-                            return@launch
-                        }
-//                        documentRepository.createDocument(folderId, name, content)
-//                        documents = documentRepository.getDocumentsByFolder(folderId)
-                        showAddDialog = false
-                        snackbarHostState.showSnackbar("Document created successfully")
-                    } catch (e: Exception) {
-                        snackbarHostState.showSnackbar("Failed to create document: ${e.message}")
-                    }
-                }
+            onConfirm = { name, content -> // Simplified for text-only for now
+                // In a real app, you'd get fileBytes, fileName, mimeType from a picker
+                viewModel.createDocument(folderId, name, content, null, null, null)
+                showAddDialog = false
             }
         )
     }
@@ -151,20 +158,8 @@ fun DocumentsScreen(
             document = document,
             onDismiss = { showEditDialog = null },
             onConfirm = { name, content ->
-                scope.launch {
-                    try {
-                        if (name.isBlank()) {
-                            snackbarHostState.showSnackbar("Document name cannot be empty")
-                            return@launch
-                        }
-//                        documentRepository.updateDocument(document.id, name, content)
-//                        documents = documentRepository.getDocumentsByFolder(folderId)
-                        showEditDialog = null
-                        snackbarHostState.showSnackbar("Document updated successfully")
-                    } catch (e: Exception) {
-                        snackbarHostState.showSnackbar("Failed to update document: ${e.message}")
-                    }
-                }
+                viewModel.updateDocument(document.id, folderId, name, content)
+                showEditDialog = null
             }
         )
     }
@@ -173,29 +168,17 @@ fun DocumentsScreen(
         AlertDialog(
             onDismissRequest = { showDeleteDialog = null },
             title = { Text("Delete Document") },
-            text = { Text("Are you sure you want to delete document ${document.name}?") },
+            text = { Text("Are you sure you want to delete document \"${document.name}\"?") },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        scope.launch {
-                            try {
-//                                documentRepository.deleteDocument(document.id)
-//                                documents = documentRepository.getDocumentsByFolder(folderId)
-                                showDeleteDialog = null
-                                snackbarHostState.showSnackbar("Document deleted successfully")
-                            } catch (e: Exception) {
-                                snackbarHostState.showSnackbar("Failed to delete document: ${e.message}")
-                            }
-                        }
+                        viewModel.deleteDocument(document.id, document.appwriteFileId, folderId)
+                        showDeleteDialog = null
                     }
-                ) {
-                    Text("Delete")
-                }
+                ) { Text("Delete") }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = null }) {
-                    Text("Cancel")
-                }
+                TextButton(onClick = { showDeleteDialog = null }) { Text("Cancel") }
             }
         )
     }
@@ -207,6 +190,7 @@ private fun DocumentItem(
     onClick: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
+    // isAdmin: Boolean
 ) {
     Card(
         modifier = Modifier
@@ -221,46 +205,48 @@ private fun DocumentItem(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Filled.Info, contentDescription = null)
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        text = document.name,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = document.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                Text(
+                    text = document.name,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text( // Show content preview if it's short, or file type
+                    text = document.mimeType ?: document.content.take(100),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "Created: ${document.createdAt?.take(10)} by ${document.createdBy.take(8)}...",
+                    style = MaterialTheme.typography.labelSmall
+                )
             }
+            // if (isAdmin || document.createdBy == currentUserId) { // More granular permission
             Row {
                 IconButton(onClick = onEdit) {
-                    Icon(Icons.Filled.Edit, "Edit")
+                    Icon(Icons.Filled.Edit, "Edit Document")
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(Icons.Filled.Delete, "Delete")
+                    Icon(Icons.Filled.Delete, "Delete Document")
                 }
             }
+            // }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DocumentDialog(
     document: Document? = null,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, content: String) -> Unit
+    onConfirm: (name: String, content: String) -> Unit // Add params for file if needed
+    // onConfirm: (name: String, content: String, file: ByteArray?, fileName: String?, mimeType: String?) -> Unit
 ) {
     var name by remember { mutableStateOf(document?.name ?: "") }
-    var content by remember { mutableStateOf(document?.content ?: "") }
-    var showNameError by remember { mutableStateOf(false) }
+    var content by remember { mutableStateOf(document?.content ?: "") } // For text part
+    var nameError by remember { mutableStateOf<String?>(null) }
+    // Add states for selected file if implementing file upload within dialog
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -269,42 +255,42 @@ private fun DocumentDialog(
             Column {
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { 
-                        name = it
-                        showNameError = false
-                    },
-                    label = { Text("Document Name") },
+                    onValueChange = { name = it; nameError = null },
+                    label = { Text("Document Name*") },
                     modifier = Modifier.fillMaxWidth(),
-                    isError = showNameError
+                    isError = nameError != null,
+                    singleLine = true
                 )
+                if (nameError != null) {
+                    Text(nameError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = content,
                     onValueChange = { content = it },
-                    label = { Text("Content") },
+                    label = { Text("Content / Description") }, // Or "Text Content"
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 5,
-                    maxLines = 10
+                    minLines = 3,
+                    maxLines = 5
                 )
+                // Add a button here to pick a file for upload if applicable
+                // e.g., Button(onClick = { /* trigger file picker */ }) { Text("Select File") }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
                     if (name.isBlank()) {
-                        showNameError = true
+                        nameError = "Document name cannot be empty."
                         return@TextButton
                     }
+                    // Pass fileBytes, selectedFileName, selectedMimeType if you have them
                     onConfirm(name, content)
                 }
-            ) {
-                Text("Save")
-            }
+            ) { Text("Save") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
-} 
+}
