@@ -25,17 +25,28 @@ import uz.mobiledv.test1.model.Folder
 import uz.mobiledv.test1.model.User
 import uz.mobiledv.test1.model.UserPrefs
 import io.appwrite.Query
+import io.appwrite.models.Session
 import io.ktor.client.call.body
 import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.http.ContentType
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
+import okhttp3.internal.wait
 import uz.mobiledv.test1.appwrite.APPWRITE_ENDPOINT
 import uz.mobiledv.test1.appwrite.APPWRITE_PROJECT_ID
+import uz.mobiledv.test1.appwrite.AppWriteAccount
 import uz.mobiledv.test1.mapper.toKmpDocument
 import uz.mobiledv.test1.mapper.toKmpDocumentList
 import uz.mobiledv.test1.mapper.toKmpFolder
 import uz.mobiledv.test1.mapper.toKmpFolderList
 import uz.mobiledv.test1.model.AppwriteDocumentList
+import javax.naming.Context
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 interface DocumentRepository {
     // USER OPERATIONS
@@ -122,23 +133,31 @@ class DocumentRepositoryImpl(
     // --- USER OPERATIONS ---
     override suspend fun login(email: String, password: String): Result<User> = runCatching {
         try {
-            val session = account.createEmailPasswordSession(email,password)
-            println(session.id + "session id")
+            account.createEmailPasswordSession(email, password)
+            println("session id")
+
             // Session created, now get user details
-            delay(10_000)
-            val appwriteUser = account.get() // Fetches io.appwrite.models.User
+            val appwriteUser = getLoggedIn()
             // Map to your app's User model
             User(
-                id = appwriteUser.id,
-                username = appwriteUser.name ?: "",
-                email = appwriteUser.email,
-                isAdmin = appwriteUser.prefs?.data?.get("isAdmin") as? Boolean ?: false,
-                phoneNumber = appwriteUser.phone
+                id = appwriteUser?.id ?: "",
+                username = appwriteUser?.name ?: "",
+                email = appwriteUser?.email,
+                isAdmin = appwriteUser?.prefs?.data?.get("isAdmin") as? Boolean ?: false,
+                phoneNumber = appwriteUser?.phone
                 // prefs = appwriteUser.prefs.data as? UserPrefs // More robust mapping needed
             )
         } catch (e: AppwriteException) {
             // Log e.message, e.code, e.type, e.response
             throw Exception("Login failed: ${e.message}", e)
+        }
+    }
+
+    suspend fun getLoggedIn(): io.appwrite.models.User<Map<String, Any>>? {
+        return try {
+            account.get()
+        } catch (e: AppwriteException) {
+            null
         }
     }
 

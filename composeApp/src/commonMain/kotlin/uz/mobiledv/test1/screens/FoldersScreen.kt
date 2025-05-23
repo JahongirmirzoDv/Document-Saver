@@ -53,7 +53,6 @@ import uz.mobiledv.test1.repository.FolderRepository
 fun FoldersScreen(
     onFolderClick: (Folder) -> Unit,
     onBackClick: () -> Unit,
-    currentUser: User?,
     onUserManagementClick: () -> Unit,
 ) {
     var folders by remember { mutableStateOf<List<Folder>>(emptyList()) }
@@ -63,6 +62,9 @@ fun FoldersScreen(
     var isLoading by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+
+
 
     LaunchedEffect(Unit) {
         try {

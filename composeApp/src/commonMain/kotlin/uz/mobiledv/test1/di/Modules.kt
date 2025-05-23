@@ -6,6 +6,7 @@ import io.appwrite.services.Storage
 import io.appwrite.services.Users
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import uz.mobiledv.test1.appwrite.AppWriteAccount
 import uz.mobiledv.test1.appwrite.AppwriteInstance
 import uz.mobiledv.test1.appwrite.KtorClientInstance
 import uz.mobiledv.test1.repository.DocumentRepository
@@ -13,6 +14,7 @@ import uz.mobiledv.test1.repository.DocumentRepositoryImpl
 import uz.mobiledv.test1.repository.FolderRepository
 import uz.mobiledv.test1.repository.FolderRepositoryImpl
 import uz.mobiledv.test1.screens.LoginViewModel
+import kotlin.coroutines.CoroutineContext
 
 expect val platformModule: Module
 
@@ -24,13 +26,13 @@ val viewModelModule = module {
 
     // If LoginViewModel is a plain Kotlin class (not AndroidX ViewModel)
     // or using a KMP ViewModel library without specific Koin extensions:
-    factory { LoginViewModel(get()) } // Use factory for ViewModels usually
+    factory { LoginViewModel(get(), get()) } // Use factory for ViewModels usually
 //    factory { FoldersViewModel(get()) } // Example
 //    factory { DocumentsViewModel(get(), get()) } // Example
 }
 
 val sharedModule = module {
-    single { AppwriteInstance.client } // Provide Appwrite Client
+    single { AppwriteInstance.client }
     single { Account(get()) }         // Provide Appwrite Account service
     single { Databases(get()) } // Provide Appwrite Databases service
     single { Storage(get()) }          // Provide Appwrite Storage service
@@ -40,6 +42,8 @@ val sharedModule = module {
     //single<UserRepository> { UserRepositoryImpl(get(), get()) } // Pass Account and Ktor client
     single<FolderRepository> { FolderRepositoryImpl(get()) } // Pass Databases
     single<DocumentRepository> {
-        DocumentRepositoryImpl(get(), get(), get(), get(), get(), get())
+        DocumentRepositoryImpl(get(), get(),
+            get(), get(),
+            get(), get())
     } // Pass Databases, Storage, Ktor client
 }

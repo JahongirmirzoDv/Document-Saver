@@ -2,16 +2,23 @@ package uz.mobiledv.test1.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.appwrite.Client
+import io.appwrite.exceptions.AppwriteException
+import io.appwrite.services.Account
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import uz.mobiledv.test1.appwrite.AppWriteAccount
+import uz.mobiledv.test1.appwrite.AppWriteResponse
+import uz.mobiledv.test1.appwrite.AppwriteInstance
 import uz.mobiledv.test1.model.User
 import uz.mobiledv.test1.repository.DocumentRepository
 
 class LoginViewModel(
-    private val documentRepository: DocumentRepository // Injected by Koin
+    private val documentRepository: DocumentRepository,
+    private val account: Account
 ) : ViewModel() { // Or your KMP ViewModel base class
 
     private val _loginUiState = MutableStateFlow<LoginUiState>(LoginUiState.Idle)
@@ -36,7 +43,6 @@ class LoginViewModel(
             )
         }
     }
-
     fun resetState() {
         _loginUiState.value = LoginUiState.Idle
     }

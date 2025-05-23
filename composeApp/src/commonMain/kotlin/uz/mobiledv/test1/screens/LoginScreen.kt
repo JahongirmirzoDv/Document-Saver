@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +42,17 @@ fun LoginScreen(
     var passwordVisible by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
+
+    // Observe the UI state from the ViewModel
+    val loginState by viewModel.loginUiState.collectAsStateWithLifecycle()
+
+    // Handle navigation or other side effects based on login state
+    LaunchedEffect(loginState) {
+        if (loginState is LoginUiState.Success) {
+            onLoginSuccess((loginState as LoginUiState.Success).user)
+            viewModel.resetState() // Reset state after navigation
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -88,60 +100,37 @@ fun LoginScreen(
                     )
                 }
             },
-            isError = error != null
+            isError = loginState is LoginUiState.Error,
+            singleLine = true
         )
+
+        if (loginState is LoginUiState.Error) {
+            Text(
+                text = (loginState as LoginUiState.Error).message,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+
 
         Button(
             onClick = {
-                if (username.isBlank()) {
-                    error = "Username cannot be empty"
-                    return@Button
+                if (username.isNotBlank() && password.isNotBlank()) {
+                    viewModel.login(username, password)
                 }
-                if (password.isBlank()) {
-                    error = "Password cannot be empty"
-                    return@Button
-                }
+
                 viewModel.login(username, password)
                 isLoading = true
                 error = null
-
-                scope.launch {
-                    try {
-
-                    } catch (e: Exception) {
-
-                        isLoading = false
-                    }
-                }
             },
-            enabled = !isLoading && username.isNotBlank() && password.isNotBlank(),
+            enabled = loginState !is LoginUiState.Loading && username.isNotBlank() && password.isNotBlank(),
             modifier = Modifier.padding(top = 16.dp)
         ) {
-            val state = viewModel.loginUiState.collectAsStateWithLifecycle()
-            val user = viewModel.loggedInUser.collectAsStateWithLifecycle()
-            when (state.value) {
-                is LoginUiState.Error -> {
-                    isLoading = false
-                    error = (state.value as LoginUiState.Error).message
-                }
-
-                LoginUiState.Idle -> {
-                    // Do nothing
-                }
-
-                LoginUiState.Loading -> {
-                    isLoading = true
-                }
-
-                is LoginUiState.Success -> {
-                    isLoading = false
-                    user.value?.let { onLoginSuccess(it) }
-                }
-            }
-            if (isLoading) {
+            if (loginState is LoginUiState.Loading) {
                 CircularProgressIndicator(
                     color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(24.dp)
                 )
             } else {
                 Text("Login")

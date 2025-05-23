@@ -21,6 +21,8 @@ expect fun createPlatformSpecificAppwriteClient(): Client
 expect fun createPlatformSpecificHttpClient(): HttpClient
 
 // Singleton for Appwrite Client
+
+
 object AppwriteInstance {
     val client: Client by lazy {
         createPlatformSpecificAppwriteClient().apply {
@@ -28,9 +30,10 @@ object AppwriteInstance {
             setProject(APPWRITE_PROJECT_ID)
             // For self-signed certificates (development only, not recommended for production)
              setSelfSigned(true)
-
         }
     }
+    // Add this function to get the raw client
+    fun getRawClient(): io.appwrite.Client = this.client
 }
 
 // Singleton for Ktor HttpClient
