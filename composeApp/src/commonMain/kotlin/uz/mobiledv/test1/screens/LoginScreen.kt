@@ -31,24 +31,19 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
+import uz.mobiledv.test1.AppViewModel
 import uz.mobiledv.test1.model.User
-import uz.mobiledv.test1.repository.DocumentRepository
 
 @Composable
 fun LoginScreen(
     onLoginSuccess: (User) -> Unit,
-    viewModel: LoginViewModel = koinViewModel()
+    viewModel: AppViewModel = koinViewModel()
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var passwordVisible by remember { mutableStateOf(false) }
-    var rememberMe by remember { mutableStateOf(viewModel.lastLoggedInEmail != null) } //
-
-    val scope = rememberCoroutineScope()
-
-    val loginState by viewModel.loginUiState.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -98,26 +93,6 @@ fun LoginScreen(
             },
             isError = error != null
         )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(
-                checked = rememberMe,
-                onCheckedChange = { rememberMe = it }
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Remember Email")
-        }
-
-        if (loginState is LoginUiState.Error) {
-            Text(
-                text = (loginState as LoginUiState.Error).message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium, // Adjusted style
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-        }
 
 
         Button(
@@ -130,34 +105,15 @@ fun LoginScreen(
                     error = "Password cannot be empty"
                     return@Button
                 }
-                viewModel.login(username, password,true)
+                viewModel.login(username, password)
                 isLoading = true
                 error = null
+
+
             },
             enabled = !isLoading && username.isNotBlank() && password.isNotBlank(),
             modifier = Modifier.padding(top = 16.dp)
         ) {
-            val state = viewModel.loginUiState.collectAsStateWithLifecycle()
-            val user = viewModel.loggedInUser.collectAsStateWithLifecycle()
-            when (state.value) {
-                is LoginUiState.Error -> {
-                    isLoading = false
-                    error = (state.value as LoginUiState.Error).message
-                }
-
-                LoginUiState.Idle -> {
-                    // Do nothing
-                }
-
-                LoginUiState.Loading -> {
-                    isLoading = true
-                }
-
-                is LoginUiState.Success -> {
-                    isLoading = false
-                    user.value?.let { onLoginSuccess(it) }
-                }
-            }
             if (isLoading) {
                 CircularProgressIndicator(
                     color = MaterialTheme.colorScheme.onPrimary,

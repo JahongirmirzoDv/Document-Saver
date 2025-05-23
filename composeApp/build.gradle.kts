@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalKotlinGradlePluginApi::class)
+
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -17,12 +19,13 @@ kotlin {
             jvmTarget.set(JvmTarget.JVM_11)
         }
     }
-    
+
+    androidTarget()
     jvm("desktop")
-    
+
     sourceSets {
         val desktopMain by getting
-        
+
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
@@ -31,8 +34,8 @@ kotlin {
             implementation(libs.koin.androidx.compose)
 
             implementation(libs.ktor.client.okhttp)
-            implementation(libs.ktor.client.logging)
-            implementation(libs.multiplatformSettings.noArg) // For Android
+            implementation(libs.ktor.client.logging) // Ktor logging
+            implementation(libs.multiplatformSettings.noArg) // For Android SharedPreferences
 
 
         }
@@ -61,8 +64,12 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
 //            implementation(libs.kotlinx.coroutines.play.services) // Use the latest stable version
 
-            // Appwrite SDK (provides client and models)
-            implementation("io.appwrite:sdk-for-kotlin:5.0.1")
+            // Supabase
+            implementation(project.dependencies.platform("io.github.jan-tennert.supabase:bom:3.1.4"))
+            implementation("io.github.jan-tennert.supabase:postgrest-kt")
+            implementation("io.github.jan-tennert.supabase:storage-kt")
+            implementation("io.github.jan-tennert.supabase:auth-kt")
+            implementation("io.github.jan-tennert.supabase:realtime-kt")
 
             implementation(libs.multiplatformSettings.noArg) // Common dependency
             implementation(libs.multiplatformSettings.coroutines) // Optional for coroutines support

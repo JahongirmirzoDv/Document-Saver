@@ -1,58 +1,24 @@
 package uz.mobiledv.test1.di
 
-import io.appwrite.services.Account
-import io.appwrite.services.Databases
-import io.appwrite.services.Storage
-import io.appwrite.services.Users
+import io.github.jan.supabase.auth.auth
+import kotlinx.serialization.json.Json
 import org.koin.core.module.Module
 import org.koin.dsl.module
-import uz.mobiledv.test1.appwrite.AppWriteAccount
-import uz.mobiledv.test1.appwrite.AppwriteInstance
-import uz.mobiledv.test1.appwrite.KtorClientInstance
 import uz.mobiledv.test1.data.AuthSettings
 import uz.mobiledv.test1.data.AuthSettingsImpl
-import uz.mobiledv.test1.repository.DocumentRepository
-import uz.mobiledv.test1.repository.DocumentRepositoryImpl
-import uz.mobiledv.test1.repository.FolderRepository
-import uz.mobiledv.test1.repository.FolderRepositoryImpl
-import uz.mobiledv.test1.screens.DocumentsViewModel
-import uz.mobiledv.test1.screens.FoldersViewModel
-import uz.mobiledv.test1.screens.LoginViewModel
-import uz.mobiledv.test1.screens.UserManagementViewModel
-import kotlin.coroutines.CoroutineContext
 
 expect val platformModule: Module
 
-val viewModelModule = module {
-    // For AndroidX ViewModel (if koin-androidx-viewmodel is setup for commonMain, or via expect/actual)
-    // viewModel { LoginViewModel(get()) }
-    // viewModel { FoldersViewModel(get()) }
-    // viewModel { DocumentsViewModel(get(), get()) } // If it takes two repositories
 
-    // If LoginViewModel is a plain Kotlin class (not AndroidX ViewModel)
-    // or using a KMP ViewModel library without specific Koin extensions:
-    factory { LoginViewModel(get(), get()) }
-    factory { FoldersViewModel(get(), get()) } // Added DocumentRepository for current user
-    factory { DocumentsViewModel(get(), get()) } // Added DocumentRepository for current user
-    factory { UserManagementViewModel(get()) }
-}
 
 val sharedModule = module {
-    single { AppwriteInstance.client }
-    single { Account(get()) }         // Provide Appwrite Account service
-    single { Databases(get()) } // Provide Appwrite Databases service
-    single { Storage(get()) }          // Provide Appwrite Storage service
-    single { Users(get()) }            // <<<< ADD THIS LINE
-    single { KtorClientInstance.httpClient } // Provide Ktor HttpClient
+    single {
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+            coerceInputValues = true
+        }
+    }
 
-    single<AuthSettings> { AuthSettingsImpl(get()) } // Koin will inject the platform-specific Settings
-
-
-    //single<UserRepository> { UserRepositoryImpl(get(), get()) } // Pass Account and Ktor client
-    single<FolderRepository> { FolderRepositoryImpl(get()) } // Pass Databases
-    single<DocumentRepository> {
-        DocumentRepositoryImpl(get(), get(),
-            get(), get(),
-            get(), get())
-    } // Pass Databases, Storage, Ktor client
+    single<AuthSettings> { AuthSettingsImpl(get(),get()) } // Koin will inject the platform-specific Settings
 }

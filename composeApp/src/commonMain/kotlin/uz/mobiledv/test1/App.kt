@@ -1,50 +1,60 @@
 package uz.mobiledv.test1
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import io.github.jan.supabase.auth.status.SessionStatus
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
-import uz.mobiledv.test1.model.User
-import uz.mobiledv.test1.repository.DocumentRepositoryImpl
-import uz.mobiledv.test1.repository.FolderRepositoryImpl
-import uz.mobiledv.test1.screens.DocumentsScreen
-import uz.mobiledv.test1.screens.FoldersScreen
 import uz.mobiledv.test1.screens.LoginScreen
-import uz.mobiledv.test1.screens.LoginViewModel
-import uz.mobiledv.test1.screens.UserManagementScreen
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 @Preview
 fun App() {
 
     MaterialTheme {
         val navController = rememberNavController()
-        var currentUser by remember { mutableStateOf<User?>(null) }
 
-        var currentUserState by remember { mutableStateOf<User?>(null) } // For passing to screens if needed
+        val viewModel: AppViewModel = koinViewModel()
 
-        // Obtain LoginViewModel using Koin
-        val loginViewModel: LoginViewModel = koinViewModel()
-        val loginState by loginViewModel.loginUiState.collectAsStateWithLifecycle()
-        val isLogged = loginViewModel.initialLoginStatus
+        val loginAlert by viewModel.loginAlert.collectAsStateWithLifecycle()
+        val sessionStatus by viewModel.sessionStatus.collectAsStateWithLifecycle()
+        println(sessionStatus)
 
-        // Initial check for logged-in status
-        var attemptedInitialLoginCheck by remember { mutableStateOf(false) }
-        var initialRoute by remember { mutableStateOf<String?>(null) }
+        var route by remember { mutableStateOf("login") }
 
-        NavHost(navController, startDestination = if(isLogged) "folders" else "login") {
+        route = when(sessionStatus) {
+            is SessionStatus.Authenticated -> {
+                "folders"
+            }
+
+            is SessionStatus.NotAuthenticated -> {
+                "login"
+            }
+
+            SessionStatus.Initializing -> TODO()
+            is SessionStatus.RefreshFailure -> TODO()
+        }
+
+
+        NavHost(navController, startDestination = route) {
             composable("login") {
                 LoginScreen(
                     onLoginSuccess = { user ->
-                        currentUser = user
                         navController.navigate("folders") {
                             popUpTo("login") { inclusive = true }
                         }
@@ -52,36 +62,9 @@ fun App() {
                 )
             }
             composable("folders") {
-                FoldersScreen(
-                    onFolderClick = { folder ->
-                        navController.navigate("documents/${folder.id}")
-                    },
-                    onBackClick = {
-                        navController.popBackStack()
-                    },
-                    onUserManagementClick = {
-                        navController.navigate("user_management")
-                    },
-                )
-            }
-            composable("documents/{folderId}") { backStackEntry ->
-                val folderId = backStackEntry.arguments?.getString("folderId") ?: return@composable
-                DocumentsScreen(
-                    folderId = folderId,
-                    onBackClick = {
-                        navController.popBackStack()
-                    },
-                    onDocumentClick = { document ->
-                        // Handle document click
-                    },
-                )
-            }
-            composable("user_management") {
-                UserManagementScreen(
-                    onBackClick = {
-                        navController.navigateUp()
-                    },
-                )
+                Box(modifier = Modifier.fillMaxSize(),contentAlignment = Alignment.Center){
+                    Text("Folders Screen")
+                }
             }
         }
     }
