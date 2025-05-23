@@ -37,7 +37,6 @@ import uz.mobiledv.test1.model.User
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: (User) -> Unit,
     viewModel: AppViewModel = koinViewModel()
 ) {
     var username by remember { mutableStateOf("") }

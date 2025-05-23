@@ -2,6 +2,7 @@ package uz.mobiledv.test1
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,41 +30,29 @@ fun App() {
 
     MaterialTheme {
         val navController = rememberNavController()
-
         val viewModel: AppViewModel = koinViewModel()
 
         val sessionStatus by viewModel.sessionStatus.collectAsStateWithLifecycle()
         println(sessionStatus)
 
-        var route by remember { mutableStateOf("") }
-
-        route = when (sessionStatus) {
-            is SessionStatus.Authenticated -> {
-                "folders"
-            }
-
-            is SessionStatus.NotAuthenticated -> {
-                "login"
-            }
-
-            else -> {
-                "login"
+        val startDestination = remember(sessionStatus) {
+            when (sessionStatus) {
+                is SessionStatus.Authenticated -> "folders"
+                is SessionStatus.NotAuthenticated -> "login"
+                is SessionStatus.RefreshFailure -> "loading" // Handle loading/error state
+                else -> "loading" // Default to loading, covers other cases like MFA
             }
         }
-        if (route.isEmpty()) {
+
+        if (startDestination == "loading") {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Loading...")
+                CircularProgressIndicator() // Show a loading indicator
+                Text("Checking session...")
             }
         } else {
-            NavHost(navController, startDestination = route) {
+            NavHost(navController, startDestination = startDestination) {
                 composable("login") {
-                    LoginScreen(
-                        onLoginSuccess = { user ->
-                            navController.navigate("folders") {
-                                popUpTo("login") { inclusive = true }
-                            }
-                        },
-                    )
+                    LoginScreen()
                 }
                 composable("folders") {
                     FoldersScreen()
