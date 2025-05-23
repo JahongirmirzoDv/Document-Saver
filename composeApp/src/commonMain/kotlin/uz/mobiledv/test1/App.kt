@@ -6,16 +6,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import org.koin.compose.viewmodel.koinViewModel
 import uz.mobiledv.test1.model.User
 import uz.mobiledv.test1.repository.DocumentRepositoryImpl
 import uz.mobiledv.test1.repository.FolderRepositoryImpl
 import uz.mobiledv.test1.screens.DocumentsScreen
 import uz.mobiledv.test1.screens.FoldersScreen
 import uz.mobiledv.test1.screens.LoginScreen
+import uz.mobiledv.test1.screens.LoginViewModel
 import uz.mobiledv.test1.screens.UserManagementScreen
 
 @Composable
@@ -26,7 +29,18 @@ fun App() {
         val navController = rememberNavController()
         var currentUser by remember { mutableStateOf<User?>(null) }
 
-        NavHost(navController, startDestination = "login") {
+        var currentUserState by remember { mutableStateOf<User?>(null) } // For passing to screens if needed
+
+        // Obtain LoginViewModel using Koin
+        val loginViewModel: LoginViewModel = koinViewModel()
+        val loginState by loginViewModel.loginUiState.collectAsStateWithLifecycle()
+        val isLogged = loginViewModel.initialLoginStatus
+
+        // Initial check for logged-in status
+        var attemptedInitialLoginCheck by remember { mutableStateOf(false) }
+        var initialRoute by remember { mutableStateOf<String?>(null) }
+
+        NavHost(navController, startDestination = if(isLogged) "folders" else "login") {
             composable("login") {
                 LoginScreen(
                     onLoginSuccess = { user ->
@@ -45,7 +59,6 @@ fun App() {
                     onBackClick = {
                         navController.popBackStack()
                     },
-                    currentUser = currentUser,
                     onUserManagementClick = {
                         navController.navigate("user_management")
                     },

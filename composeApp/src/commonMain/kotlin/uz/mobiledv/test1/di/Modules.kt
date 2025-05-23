@@ -9,11 +9,16 @@ import org.koin.dsl.module
 import uz.mobiledv.test1.appwrite.AppWriteAccount
 import uz.mobiledv.test1.appwrite.AppwriteInstance
 import uz.mobiledv.test1.appwrite.KtorClientInstance
+import uz.mobiledv.test1.data.AuthSettings
+import uz.mobiledv.test1.data.AuthSettingsImpl
 import uz.mobiledv.test1.repository.DocumentRepository
 import uz.mobiledv.test1.repository.DocumentRepositoryImpl
 import uz.mobiledv.test1.repository.FolderRepository
 import uz.mobiledv.test1.repository.FolderRepositoryImpl
+import uz.mobiledv.test1.screens.DocumentsViewModel
+import uz.mobiledv.test1.screens.FoldersViewModel
 import uz.mobiledv.test1.screens.LoginViewModel
+import uz.mobiledv.test1.screens.UserManagementViewModel
 import kotlin.coroutines.CoroutineContext
 
 expect val platformModule: Module
@@ -26,9 +31,10 @@ val viewModelModule = module {
 
     // If LoginViewModel is a plain Kotlin class (not AndroidX ViewModel)
     // or using a KMP ViewModel library without specific Koin extensions:
-    factory { LoginViewModel(get(), get()) } // Use factory for ViewModels usually
-//    factory { FoldersViewModel(get()) } // Example
-//    factory { DocumentsViewModel(get(), get()) } // Example
+    factory { LoginViewModel(get(), get()) }
+    factory { FoldersViewModel(get(), get()) } // Added DocumentRepository for current user
+    factory { DocumentsViewModel(get(), get()) } // Added DocumentRepository for current user
+    factory { UserManagementViewModel(get()) }
 }
 
 val sharedModule = module {
@@ -38,6 +44,9 @@ val sharedModule = module {
     single { Storage(get()) }          // Provide Appwrite Storage service
     single { Users(get()) }            // <<<< ADD THIS LINE
     single { KtorClientInstance.httpClient } // Provide Ktor HttpClient
+
+    single<AuthSettings> { AuthSettingsImpl(get()) } // Koin will inject the platform-specific Settings
+
 
     //single<UserRepository> { UserRepositoryImpl(get(), get()) } // Pass Account and Ktor client
     single<FolderRepository> { FolderRepositoryImpl(get()) } // Pass Databases
