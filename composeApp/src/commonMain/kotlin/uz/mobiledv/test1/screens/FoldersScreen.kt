@@ -6,11 +6,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -61,6 +63,11 @@ fun FoldersScreen(
                     if (isManager) { // Only show Add for Desktop/Manager
                         IconButton(onClick = { showAddDialog = true }) {
                             Icon(Icons.Filled.Add, "Add Folder")
+                        }
+                        IconButton(onClick = {
+
+                        }) {
+                            Icon(Icons.Filled.ManageAccounts, "Manage users")
                         }
                     }
                     IconButton(onClick = {
