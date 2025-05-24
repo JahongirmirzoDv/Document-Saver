@@ -20,6 +20,7 @@ import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.realtime.Column
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
+import uz.mobiledv.test1.model.Document
 import uz.mobiledv.test1.screens.FolderDetailScreen
 import uz.mobiledv.test1.screens.FoldersScreen
 import uz.mobiledv.test1.screens.LoginScreen
@@ -51,8 +52,7 @@ fun App() {
                 }
             } else if (sessionStatus is SessionStatus.Authenticated) {
                 if (navController.currentDestination?.route != "folders" &&
-                    !navController.currentDestination?.route.orEmpty().startsWith("folderDetail")
-                ) {
+                    !navController.currentDestination?.route.orEmpty().startsWith("folderDetail")) {
                     navController.navigate("folders") {
                         popUpTo("login") { inclusive = true } // Clear login from backstack
                         launchSingleTop = true

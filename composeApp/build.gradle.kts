@@ -36,7 +36,6 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.multiplatformSettings.noArg)
 
-
         }
         commonMain.dependencies {
             implementation(compose.runtime)

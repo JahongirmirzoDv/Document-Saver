@@ -36,10 +36,28 @@ actual fun rememberFilePickerLauncher(
 
                     val mimeType = contentResolver.getType(uri)
 
-                    contentResolver.openInputStream(uri)?.use { inputStream ->
-                        val bytes = inputStream.readBytes()
-                        onFilePicked(FileData(fileName, bytes, mimeType))
-                    } ?: onFilePicked(null)
+                    // Validate MIME type
+                    val allowedMimeTypes = listOf(
+                        "application/pdf",
+                        "image/png",
+                        "image/jpeg",
+                        "application/msword", // .doc
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+                        "application/vnd.ms-excel", // .xls
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" // .xlsx
+                    )
+
+                    if (mimeType != null && allowedMimeTypes.contains(mimeType)) {
+                        contentResolver.openInputStream(uri)?.use { inputStream ->
+                            val bytes = inputStream.readBytes()
+                            onFilePicked(FileData(fileName, bytes, mimeType))
+                        } ?: onFilePicked(null)
+                    } else {
+                        // Notify user of invalid file type
+                        onFilePicked(null) // Or pass a specific error
+                        // You could show a Toast or Snackbar here, e.g., by calling a callback
+                        println("Invalid file type selected: $mimeType")
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                     onFilePicked(null)
@@ -52,17 +70,22 @@ actual fun rememberFilePickerLauncher(
 
     // Return a lambda that takes no arguments
     return {
-        // You define the MIME types to be used here.
-        // For example, to allow any file type:
-        val mimeTypesToLaunch = arrayOf("*/*")
-        // Or, for specific types:
-        // val mimeTypesToLaunch = arrayOf("image/png", "application/pdf")
+        // Define the MIME types for the OpenDocument contract
+        val mimeTypesToLaunch = arrayOf(
+            "application/pdf",
+            "image/png",
+            "image/jpeg",
+            "application/msword", // .doc
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+            "application/vnd.ms-excel", // .xls
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" // .xlsx
+        )
 
         try {
             launcher.launch(mimeTypesToLaunch)
         } catch (e: Exception) {
             e.printStackTrace()
-            onFilePicked(null)
+            onFilePicked(null) // Handle exception during launch
         }
     }
 }

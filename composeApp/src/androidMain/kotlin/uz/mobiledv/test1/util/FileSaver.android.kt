@@ -1,4 +1,3 @@
-// androidMain/kotlin/uz/mobiledv/test1/util/FileSaver.android.kt
 package uz.mobiledv.test1.util
 
 import android.content.ContentValues

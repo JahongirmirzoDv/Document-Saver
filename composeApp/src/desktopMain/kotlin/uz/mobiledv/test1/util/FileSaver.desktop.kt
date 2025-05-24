@@ -1,4 +1,3 @@
-// desktopMain/kotlin/uz/mobiledv/test1/util/FileSaver.desktop.kt
 package uz.mobiledv.test1.util
 
 import kotlinx.coroutines.Dispatchers

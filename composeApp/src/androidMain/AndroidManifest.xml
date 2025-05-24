@@ -28,6 +28,7 @@
 <!--                <data android:scheme="appwrite-callback-682fee890011207f8d2f" />-->
 <!--            </intent-filter>-->
 <!--        </activity>-->
+
     </application>
 
 </manifest>

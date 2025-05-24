@@ -22,26 +22,40 @@ actual class FilePicker {
             val fileChooser = JFileChooser()
             if (allowedTypes.isNotEmpty() && !(allowedTypes.size == 1 && allowedTypes[0] == "*/*")) {
                 val filters = allowedTypes.mapNotNull { type ->
-                    // Improved MIME to extension mapping and description
                     val parts = type.split("/")
                     val generalType = parts.getOrNull(0)
                     val specificType = parts.getOrNull(1)
 
-                    val extension = specificType?.substringAfterLast('.') ?: specificType ?: generalType ?: "data"
+                    // More specific extension mapping
+                    val extension: String = when (type) {
+                        "application/pdf" -> "pdf"
+                        "image/png" -> "png"
+                        "image/jpeg" -> "jpeg"
+                        "application/msword" -> "doc"
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> "docx"
+                        "application/vnd.ms-excel" -> "xls"
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> "xlsx"
+                        else -> specificType?.substringAfterLast('.') ?: specificType ?: generalType ?: "data"
+                    }
                     val description = "${specificType?.replaceFirstChar { it.titlecase() } ?: generalType?.replaceFirstChar { it.titlecase() } ?: "Files"} (*.$extension)"
                     if (extension != "*") {
-                        FileNameExtensionFilter(description, extension.lowercase(), extension.uppercase())
+                        // For JFileChooser, provide all variations of extensions if needed
+                        val extensionsToFilter = when (type) {
+                            "image/jpeg" -> arrayOf("jpeg", "jpg")
+                            else -> arrayOf(extension.lowercase())
+                        }
+                        FileNameExtensionFilter(description, *extensionsToFilter)
                     } else {
-                        null // Avoid creating a filter for "*/*" like this, handle separately or let JFileChooser do it
+                        null
                     }
                 }.toTypedArray()
 
                 if (filters.isNotEmpty()) {
-                    fileChooser.isAcceptAllFileFilterUsed = true // Still allow "All Files"
+                    fileChooser.isAcceptAllFileFilterUsed = true
                     filters.forEach { fileChooser.addChoosableFileFilter(it) }
                     fileChooser.fileFilter = filters[0]
                 } else {
-                    fileChooser.isAcceptAllFileFilterUsed = true // Default to all files if no specific valid types
+                    fileChooser.isAcceptAllFileFilterUsed = true
                 }
 
             } else {
@@ -55,8 +69,21 @@ actual class FilePicker {
                 val file = fileChooser.selectedFile
                 try {
                     val bytes = file.readBytes()
-                    val mimeType = java.nio.file.Files.probeContentType(file.toPath()) ?: "application/octet-stream"
-                    continuation.resume(FileData(file.name, bytes, mimeType))
+                    // Probe content type, then validate
+                    val probedMimeType = java.nio.file.Files.probeContentType(file.toPath()) ?: "application/octet-stream"
+
+                    val allowedMimeTypesForValidation = listOf(
+                        "application/pdf", "image/png", "image/jpeg",
+                        "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+
+                    if (allowedMimeTypesForValidation.contains(probedMimeType)) {
+                        continuation.resume(FileData(file.name, bytes, probedMimeType))
+                    } else {
+                        println("Invalid file type selected on desktop: $probedMimeType (File: ${file.name})")
+                        continuation.resume(null) // Invalid type
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                     continuation.resume(null)
@@ -73,14 +100,21 @@ actual fun rememberFilePickerLauncher(
     onFilePicked: (FileData?) -> Unit
 ): () -> Unit {
     val filePicker = remember { FilePicker() }
-    val scope = rememberCoroutineScope() // Use rememberCoroutineScope
+    val scope = rememberCoroutineScope()
 
     return {
-        // Example: launch with a filter for images and PDFs, or all files if none specified
-        val commonTypes = listOf("image/png", "image/jpeg", "application/pdf", "*/*")
-        scope.launch(Dispatchers.IO) { // Perform file IO on a background thread
-            val fileData = filePicker.pickFile(commonTypes) // Pass allowed types
-            withContext(Dispatchers.Main) { // Switch back to main thread for UI updates
+        val allowedMimeTypes = listOf(
+            "application/pdf",
+            "image/png",
+            "image/jpeg",
+            "application/msword", // .doc
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+            "application/vnd.ms-excel", // .xls
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" // .xlsx
+        )
+        scope.launch(Dispatchers.IO) {
+            val fileData = filePicker.pickFile(allowedMimeTypes)
+            withContext(Dispatchers.Main) {
                 onFilePicked(fileData)
             }
         }
