@@ -2,6 +2,8 @@ package uz.mobiledv.test1.util
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope // Import rememberCoroutineScope
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -13,40 +15,46 @@ import javax.swing.filechooser.FileNameExtensionFilter
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
-actual class FilePicker { // No constructor parameter needed for desktop usually
+actual class FilePicker {
 
     actual suspend fun pickFile(allowedTypes: List<String>): FileData? = suspendCoroutine { continuation ->
-        SwingUtilities.invokeLater { // Ensure UI operations are on the EDT
+        SwingUtilities.invokeLater {
             val fileChooser = JFileChooser()
             if (allowedTypes.isNotEmpty() && !(allowedTypes.size == 1 && allowedTypes[0] == "*/*")) {
-                val filters = allowedTypes.map { type ->
-                    // Basic mapping, might need more sophisticated MIME to extension logic
-                    val extension = type.substringAfterLast('/', type).substringAfterLast('.', type)
-                    val description = type.substringBeforeLast('/', type).replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } + " (*.$extension)"
-                    FileNameExtensionFilter(description, extension.lowercase(), extension.uppercase())
+                val filters = allowedTypes.mapNotNull { type ->
+                    // Improved MIME to extension mapping and description
+                    val parts = type.split("/")
+                    val generalType = parts.getOrNull(0)
+                    val specificType = parts.getOrNull(1)
+
+                    val extension = specificType?.substringAfterLast('.') ?: specificType ?: generalType ?: "data"
+                    val description = "${specificType?.replaceFirstChar { it.titlecase() } ?: generalType?.replaceFirstChar { it.titlecase() } ?: "Files"} (*.$extension)"
+                    if (extension != "*") {
+                        FileNameExtensionFilter(description, extension.lowercase(), extension.uppercase())
+                    } else {
+                        null // Avoid creating a filter for "*/*" like this, handle separately or let JFileChooser do it
+                    }
                 }.toTypedArray()
-                fileChooser.isAcceptAllFileFilterUsed = false // Don't show "All Files" if specific types given
-                filters.forEach { fileChooser.addChoosableFileFilter(it) }
+
                 if (filters.isNotEmpty()) {
-                    fileChooser.fileFilter = filters[0] // Set the first one as default
+                    fileChooser.isAcceptAllFileFilterUsed = true // Still allow "All Files"
+                    filters.forEach { fileChooser.addChoosableFileFilter(it) }
+                    fileChooser.fileFilter = filters[0]
+                } else {
+                    fileChooser.isAcceptAllFileFilterUsed = true // Default to all files if no specific valid types
                 }
+
             } else {
                 fileChooser.isAcceptAllFileFilterUsed = true
             }
 
-
-            // Find an active window to parent the dialog, or null
             val parentWindow = Frame.getFrames().firstOrNull { it.isActive }
-
             val result = fileChooser.showOpenDialog(parentWindow)
 
             if (result == JFileChooser.APPROVE_OPTION) {
                 val file = fileChooser.selectedFile
                 try {
                     val bytes = file.readBytes()
-                    // MIME type detection on desktop is not as straightforward as on Android.
-                    // You might use java.nio.file.Files.probeContentType(file.toPath())
-                    // or a library like Apache Tika if precise MIME types are critical.
                     val mimeType = java.nio.file.Files.probeContentType(file.toPath()) ?: "application/octet-stream"
                     continuation.resume(FileData(file.name, bytes, mimeType))
                 } catch (e: Exception) {
@@ -64,20 +72,17 @@ actual class FilePicker { // No constructor parameter needed for desktop usually
 actual fun rememberFilePickerLauncher(
     onFilePicked: (FileData?) -> Unit
 ): () -> Unit {
-    val filePicker = remember { FilePicker() } // Create an instance of the desktop FilePicker
-    // allowedTypes can be passed to the launcher if needed, e.g., from a button click
+    val filePicker = remember { FilePicker() }
+    val scope = rememberCoroutineScope() // Use rememberCoroutineScope
+
     return {
-        // This example launches with no specific file type filter.
-        // You can enhance this to accept allowedTypes similar to the Android version.
-        // For simplicity, this directly calls the suspend function.
-        // A more complex version might use a coroutine scope tied to the Composable.
-        // This is a simplified way to bridge it for desktop.
-        // Ideally, you'd manage the coroutine scope carefully.
-        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) { // Not ideal to use GlobalScope, use a proper scope
-            val fileData = filePicker.pickFile(listOf("*/*")) // Example: pick any file
-            // Switch back to main thread if onFilePicked interacts with Compose state directly
-            // For now, assuming onFilePicked handles its own threading if necessary
-            onFilePicked(fileData)
+        // Example: launch with a filter for images and PDFs, or all files if none specified
+        val commonTypes = listOf("image/png", "image/jpeg", "application/pdf", "*/*")
+        scope.launch(Dispatchers.IO) { // Perform file IO on a background thread
+            val fileData = filePicker.pickFile(commonTypes) // Pass allowed types
+            withContext(Dispatchers.Main) { // Switch back to main thread for UI updates
+                onFilePicked(fileData)
+            }
         }
     }
 }
