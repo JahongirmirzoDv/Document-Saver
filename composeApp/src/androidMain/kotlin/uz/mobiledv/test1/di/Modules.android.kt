@@ -6,6 +6,7 @@ import com.russhwolf.settings.SharedPreferencesSettings
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import uz.mobiledv.test1.util.FileSaver
 
 actual val platformModule = module {
     single<Settings> {
@@ -16,4 +17,8 @@ actual val platformModule = module {
             )
         )
     }
+}
+
+actual val platformFileSaverModule = module { // New actual
+    single { FileSaver(androidContext()) } // Provide context
 }

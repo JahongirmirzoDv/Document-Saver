@@ -19,6 +19,8 @@ import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 import uz.mobiledv.test1.components.DocumentItem
 import uz.mobiledv.test1.model.Document
+import uz.mobiledv.test1.util.PlatformType
+import uz.mobiledv.test1.util.getCurrentPlatform
 import uz.mobiledv.test1.util.rememberFilePickerLauncher
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,12 +29,17 @@ fun FolderDetailScreen(
     folderId: String,
     folderName: String,
     onNavigateBack: () -> Unit,
-    viewModel: FoldersViewModel = koinViewModel { parametersOf(folderId) } // Pass folderId if needed for initial load
+    viewModel: FoldersViewModel = koinViewModel() // Pass folderId if needed for initial load
 ) {
     val documentsUiState by viewModel.folderDocumentsUiState.collectAsStateWithLifecycle()
     val fileUploadUiState by viewModel.fileUploadUiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    val currentPlatform = remember { getCurrentPlatform() }
+    val isManager = currentPlatform == PlatformType.DESKTOP
+
+    val fileDownloadUiState by viewModel.fileDownloadUiState.collectAsStateWithLifecycle() // NEW
 
     // File Picker Launcher
     val filePickerLauncher = rememberFilePickerLauncher { fileData ->
@@ -42,6 +49,33 @@ fun FolderDetailScreen(
             scope.launch {
                 snackbarHostState.showSnackbar("File selection cancelled.")
             }
+        }
+    }
+
+    if (fileDownloadUiState is FileDownloadUiState.Loading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),// Or a smaller indicator
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator()
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Downloading file...")
+            }
+        }
+    }
+
+    LaunchedEffect(fileDownloadUiState) { // NEW
+        when (val state = fileDownloadUiState) {
+            is FileDownloadUiState.Success -> {
+                snackbarHostState.showSnackbar(state.message)
+                viewModel.clearFileDownloadStatus()
+            }
+            is FileDownloadUiState.Error -> {
+                snackbarHostState.showSnackbar("Download Error: ${state.message}")
+                viewModel.clearFileDownloadStatus()
+            }
+            else -> Unit
         }
     }
 
@@ -56,10 +90,12 @@ fun FolderDetailScreen(
                 viewModel.clearFileUploadStatus() // Clear status
                 viewModel.loadDocumentsForFolder(folderId) // Refresh list
             }
+
             is FileUploadUiState.Error -> {
                 snackbarHostState.showSnackbar("Upload Error: ${state.message}")
                 viewModel.clearFileUploadStatus() // Clear status
             }
+
             else -> Unit
         }
     }
@@ -77,8 +113,10 @@ fun FolderDetailScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { filePickerLauncher() }) {
-                Icon(Icons.Filled.CloudUpload, "Upload File")
+            if (isManager) { // Managers can upload
+                FloatingActionButton(onClick = { filePickerLauncher() }) {
+                    Icon(Icons.Filled.CloudUpload, "Upload File")
+                }
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -95,6 +133,7 @@ fun FolderDetailScreen(
                         Text("Loading documents...")
                     }
                 }
+
                 is FolderDocumentsUiState.Success -> {
                     if (state.documents.isEmpty()) {
                         Column(
@@ -102,25 +141,49 @@ fun FolderDetailScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Icon(Icons.Filled.Description, contentDescription = "No documents", modifier = Modifier.size(48.dp))
+                            Icon(
+                                Icons.Filled.Description,
+                                contentDescription = "No documents",
+                                modifier = Modifier.size(48.dp)
+                            )
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("No documents yet. Tap '+' to upload.")
+                            if (isManager) {
+                                Text("No documents yet. Tap '+' to upload.")
+                            } else {
+                                Text("No documents in this folder.")
+                            }
                         }
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize().padding(16.dp)
                         ) {
                             items(state.documents, key = { it.id }) { document ->
-                                DocumentItem(document = document, onClick = {
-                                    // Handle document click, e.g., open or download
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Clicked: ${document.name}")
+                                DocumentItem(
+                                    document = document,
+                                    isManager = isManager,
+                                    onClick = {
+                                        if (!isManager) {
+                                            // Initiate download for Android
+                                            viewModel.downloadFile(document) // We'll add this
+                                        } else {
+                                            // Manager might have other actions (view, edit metadata, delete)
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar("Manager clicked: ${document.name}")
+                                            }
+                                        }
+                                    },
+                                    onDeleteClick = {
+                                        if(isManager) {
+                                            // TODO: Implement a confirmation dialog before deleting
+                                            viewModel.deleteDocument(document) // We'll add this
+                                        }
                                     }
-                                })
+                                )
                             }
                         }
                     }
                 }
+
                 is FolderDocumentsUiState.Error -> {
                     Column(
                         modifier = Modifier.fillMaxSize(),
@@ -134,8 +197,9 @@ fun FolderDetailScreen(
                         }
                     }
                 }
+
                 is FolderDocumentsUiState.Idle -> {
-                     Column(
+                    Column(
                         modifier = Modifier.fillMaxSize(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
@@ -151,7 +215,7 @@ fun FolderDetailScreen(
                     modifier = Modifier.fillMaxSize().align(Alignment.Center),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column (horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator()
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Uploading file...")

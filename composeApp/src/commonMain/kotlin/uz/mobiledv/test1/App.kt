@@ -20,13 +20,14 @@ import org.koin.compose.viewmodel.koinViewModel
 import uz.mobiledv.test1.screens.FolderDetailScreen
 import uz.mobiledv.test1.screens.FoldersScreen
 import uz.mobiledv.test1.screens.LoginScreen
+import uz.mobiledv.test1.screens.SimpleViewModel
 
 @Composable
 @Preview
 fun App() {
+    val viewModel: AppViewModel = koinViewModel()
     MaterialTheme {
         val navController = rememberNavController()
-        val viewModel: AppViewModel = koinViewModel()
         val sessionStatus by viewModel.sessionStatus.collectAsStateWithLifecycle()
 
         val startDestination by remember(sessionStatus) {

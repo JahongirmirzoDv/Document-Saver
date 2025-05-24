@@ -10,11 +10,16 @@ import io.github.jan.supabase.auth.mfa.MfaFactor
 import io.github.jan.supabase.auth.providers.builtin.Email
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import uz.mobiledv.test1.util.PlatformType
+import uz.mobiledv.test1.util.getCurrentPlatform
 
 
 class AppViewModel(
     val supabaseClient: SupabaseClient
 ) : ViewModel() {
+
+    val currentPlatform: PlatformType = getCurrentPlatform()
+    val isManager: Boolean = currentPlatform == PlatformType.DESKTOP
 
     val sessionStatus = supabaseClient.auth.sessionStatus
     val loginAlert = MutableStateFlow<String?>(null)
@@ -62,6 +67,4 @@ class AppViewModel(
             }
         }
     }
-
-
 }

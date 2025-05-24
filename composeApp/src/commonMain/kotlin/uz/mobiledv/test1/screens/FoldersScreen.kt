@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +21,8 @@ import androidx.navigation.NavController
 import org.koin.compose.viewmodel.koinViewModel
 import uz.mobiledv.test1.AppViewModel
 import uz.mobiledv.test1.model.Folder
+import uz.mobiledv.test1.util.PlatformType
+import uz.mobiledv.test1.util.getCurrentPlatform
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,6 +33,10 @@ fun FoldersScreen(
     onLogout: () -> Unit,
     navController: NavController // Added NavController
 ) {
+
+    val currentPlatform = remember { getCurrentPlatform() } // Remember to avoid recomposition issues
+    val isManager = currentPlatform == PlatformType.DESKTOP
+
     var showAddDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf<Folder?>(null) }
     var showDeleteDialog by remember { mutableStateOf<Folder?>(null) }
@@ -50,14 +58,16 @@ fun FoldersScreen(
             TopAppBar(
                 title = { Text("My Folders") },
                 actions = {
-                    IconButton(onClick = { showAddDialog = true }) {
-                        Icon(Icons.Filled.Add, "Add Folder")
+                    if (isManager) { // Only show Add for Desktop/Manager
+                        IconButton(onClick = { showAddDialog = true }) {
+                            Icon(Icons.Filled.Add, "Add Folder")
+                        }
                     }
                     IconButton(onClick = {
-                        appViewModel.logout() // Perform logout logic
-                        onLogout()          // Navigate after logout
+                        appViewModel.logout()
+                        onLogout()
                     }) {
-                        Icon(Icons.Default.Close, "Logout") // Changed Icon
+                        Icon(Icons.AutoMirrored.Filled.Logout, "Logout")
                     }
                 }
             )
@@ -94,8 +104,9 @@ fun FoldersScreen(
                                 FolderListItem(
                                     folder = folder,
                                     onClick = { onFolderClick(folder) }, // Use callback
-                                    onEdit = { showEditDialog = folder },
-                                    onDelete = { showDeleteDialog = folder }
+                                    isManager = isManager, // Pass manager status
+                                    onEdit = { if (isManager) showEditDialog = folder },
+                                    onDelete = { if (isManager) showDeleteDialog = folder }
                                 )
                             }
                         }
@@ -108,7 +119,7 @@ fun FoldersScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Text("Error: ${state.message}")
+                        Text("Error: ${state.message}", maxLines = 4)
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = { viewModel.loadFolders() }) {
                             Text("Retry")
@@ -129,45 +140,47 @@ fun FoldersScreen(
         }
     }
 
-    if (showAddDialog) {
-        FolderDialog(
-            onDismiss = { showAddDialog = false },
-            onConfirm = { name, description ->
-                viewModel.createFolder(name, description)
-                showAddDialog = false
-            }
-        )
-    }
+    if (isManager) {
+        if (showAddDialog) {
+            FolderDialog(
+                onDismiss = { showAddDialog = false },
+                onConfirm = { name, description ->
+                    viewModel.createFolder(name, description)
+                    showAddDialog = false
+                }
+            )
+        }
 
-    showEditDialog?.let { folder ->
-        FolderDialog(
-            folder = folder,
-            onDismiss = { showEditDialog = null },
-            onConfirm = { name, description ->
-                viewModel.updateFolder(folder.id, name, description)
-                showEditDialog = null
-            }
-        )
-    }
+        showEditDialog?.let { folder ->
+            FolderDialog(
+                folder = folder,
+                onDismiss = { showEditDialog = null },
+                onConfirm = { name, description ->
+                    viewModel.updateFolder(folder.id, name, description)
+                    showEditDialog = null
+                }
+            )
+        }
 
-    showDeleteDialog?.let { folder ->
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = null },
-            title = { Text("Delete Folder") },
-            text = { Text("Are you sure you want to delete folder \"${folder.name}\"? This action cannot be undone.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteFolder(folder.id)
-                        showDeleteDialog = null
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Delete") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = null }) { Text("Cancel") }
-            }
-        )
+        showDeleteDialog?.let { folder ->
+            AlertDialog(
+                onDismissRequest = { showDeleteDialog = null },
+                title = { Text("Delete Folder") },
+                text = { Text("Are you sure you want to delete folder \"${folder.name}\"? This action cannot be undone.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            viewModel.deleteFolder(folder.id)
+                            showDeleteDialog = null
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) { Text("Delete") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteDialog = null }) { Text("Cancel") }
+                }
+            )
+        }
     }
 }
 
@@ -175,6 +188,7 @@ fun FoldersScreen(
 private fun FolderListItem(
     folder: Folder,
     onClick: () -> Unit,
+    isManager: Boolean, // Added
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -207,17 +221,23 @@ private fun FolderListItem(
                 folder.createdAt?.let {
                     Text(
                         // Basic date formatting, consider a more robust date parsing/formatting library for production
-                        text = "Created: ${it.take(10)}",
+                        text = "Created: $it",
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
             }
-            Row {
-                IconButton(onClick = onEdit, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Filled.Edit, "Edit Folder", tint = MaterialTheme.colorScheme.primary)
-                }
-                IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Filled.Delete, "Delete Folder", tint = MaterialTheme.colorScheme.error)
+            if (isManager) {
+                Row {
+                    IconButton(onClick = onEdit, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Filled.Edit, "Edit Folder", tint = MaterialTheme.colorScheme.primary)
+                    }
+                    IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            "Delete Folder",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         }

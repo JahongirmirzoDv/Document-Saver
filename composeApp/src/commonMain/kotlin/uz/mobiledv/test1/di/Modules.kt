@@ -6,9 +6,11 @@ import org.koin.core.module.Module
 import org.koin.dsl.module
 import uz.mobiledv.test1.data.AuthSettings
 import uz.mobiledv.test1.data.AuthSettingsImpl
+import uz.mobiledv.test1.util.FileSaver
 
 expect val platformModule: Module
 
+expect val platformFileSaverModule: Module // New expect
 
 
 val sharedModule = module {
