@@ -77,8 +77,10 @@ class FoldersViewModel(
     private val _operationStatus = MutableStateFlow<String?>(null)
     val operationStatus: StateFlow<String?> = _operationStatus.asStateFlow()
 
-    private val _fileDownloadUiState = MutableStateFlow<FileDownloadUiState>(FileDownloadUiState.Idle) // NEW
-    val fileDownloadUiState: StateFlow<FileDownloadUiState> = _fileDownloadUiState.asStateFlow() // NEW
+    private val _fileDownloadUiState =
+        MutableStateFlow<FileDownloadUiState>(FileDownloadUiState.Idle) // NEW
+    val fileDownloadUiState: StateFlow<FileDownloadUiState> =
+        _fileDownloadUiState.asStateFlow() // NEW
 
 
     init {
@@ -128,9 +130,11 @@ class FoldersViewModel(
             val specificDateTime = "24.05.2025/09:18 AM"
             val (datePart, timePart) = specificDateTime.split('/')
             val (day, month, year) = datePart.split('.').map { it.toInt() }
-            val (hour, minute) = timePart.substring(0, timePart.length - 3).split(':').map { it.toInt() }
+            val (hour, minute) = timePart.substring(0, timePart.length - 3).split(':')
+                .map { it.toInt() }
             val amPm = timePart.substring(timePart.length - 2)
-            val adjustedHour = if (amPm == "PM" && hour != 12) hour + 12 else if (amPm == "AM" && hour == 12) 0 else hour
+            val adjustedHour =
+                if (amPm == "PM" && hour != 12) hour + 12 else if (amPm == "AM" && hour == 12) 0 else hour
             val localDateTime = LocalDateTime(year, month, day, adjustedHour, minute)
             val instant = localDateTime.toInstant(TimeZone.UTC) // Assuming UTC for Supabase
 
@@ -215,14 +219,9 @@ class FoldersViewModel(
                 val documents = supabaseClient.postgrest[DOCUMENT]
                     .select {
                         filter {
-                            "folder_id"
-                            FilterOperator.EQ
-                            folderId
+                            eq("folder_id", folderId) // Ensure we filter by folderId
                         }
-                        // Optionally filter by user_id if documents also have a direct user_id link
-                        // and RLS isn't solely relied upon for this query.
-                        // filter("user_id", FilterOperator.EQ, currentUserId)
-                        order("name", Order.ASCENDING)
+                        order("created_at", Order.DESCENDING) // Order by creation date
                     }
                     .decodeList<Document>()
                 _folderDocumentsUiState.value = FolderDocumentsUiState.Success(documents)
@@ -260,7 +259,8 @@ class FoldersViewModel(
                     storageFilePath = storagePath,
                     userId = currentUserId,
                     mimeType = fileData.mimeType,
-                    createdAt = Clock.System.now().toString() // Supabase can also handle this with a default value
+                    createdAt = Clock.System.now()
+                        .toString() // Supabase can also handle this with a default value
                 )
                 supabaseClient.postgrest[DOCUMENT].insert(documentMetadata)
 
@@ -284,16 +284,19 @@ class FoldersViewModel(
             }
             _fileDownloadUiState.value = FileDownloadUiState.Loading
             try {
-                val bytes = supabaseClient.storage[BUCKET].downloadAuthenticated(document.storageFilePath!!) // Use downloadAuthenticated
+                val bytes =
+                    supabaseClient.storage[BUCKET].downloadAuthenticated(document.storageFilePath!!) // Use downloadAuthenticated
                 // Now save the file using platform-specific code
                 val fileName = document.name // Or extract from storageFilePath if more reliable
                 val mimeType = document.mimeType ?: "application/octet-stream"
 
                 fileSaver.saveFile(FileData(fileName, bytes, mimeType)) // Use injected FileSaver
 
-                _fileDownloadUiState.value = FileDownloadUiState.Success(fileName, "File '$fileName' downloaded.")
+                _fileDownloadUiState.value =
+                    FileDownloadUiState.Success(fileName, "File '$fileName' downloaded.")
             } catch (e: Exception) {
-                _fileDownloadUiState.value = FileDownloadUiState.Error("Download failed: ${e.message}")
+                _fileDownloadUiState.value =
+                    FileDownloadUiState.Error("Download failed: ${e.message}")
                 e.printStackTrace()
             }
         }
@@ -318,10 +321,7 @@ class FoldersViewModel(
                 // 1. Delete from Postgrest table
                 supabaseClient.postgrest[DOCUMENT].delete {
                     filter {
-                        "id"
-                        document.id
-                        "user_id"
-                        currentUserId // Ensure user owns it (RLS should also cover this)
+                        eq("id", document.id) // Use eq for equality check
                     }
                 }
 
@@ -334,7 +334,7 @@ class FoldersViewModel(
                 // Refresh documents list for the current folder
                 (_folderDocumentsUiState.value as? FolderDocumentsUiState.Success)?.let { currentState ->
                     val currentFolderId = currentState.documents.firstOrNull()?.folderId
-                    if(currentFolderId != null && currentFolderId.isNotBlank()){
+                    if (currentFolderId != null && currentFolderId.isNotBlank()) {
                         loadDocumentsForFolder(currentFolderId)
                     } else {
                         // If we can't get folderId from current state, try to find another way or prompt refresh.

@@ -84,7 +84,7 @@ fun FolderDetailScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(folderId) {
         viewModel.loadDocumentsForFolder(folderId)
     }
 
