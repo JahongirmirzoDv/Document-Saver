@@ -28,7 +28,8 @@ fun DocumentItem(
     document: Document,
     isManager: Boolean,
     onClick: () -> Unit,
-    onDeleteClick: () -> Unit // Added for managers
+    onDeleteClick: () -> Unit, // Added for managers
+    onDownloadFile: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -42,7 +43,10 @@ fun DocumentItem(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(document.name, style = MaterialTheme.typography.titleMedium)
-                Text("Folder ID: ${document.folderId}", style = MaterialTheme.typography.bodySmall) // Example: show folderId or other metadata
+                Text(
+                    "Folder ID: ${document.folderId}",
+                    style = MaterialTheme.typography.bodySmall
+                ) // Example: show folderId or other metadata
                 document.mimeType?.let {
                     Text("Type: $it", style = MaterialTheme.typography.bodySmall)
                 }
@@ -50,11 +54,19 @@ fun DocumentItem(
             Spacer(modifier = Modifier.width(8.dp))
             if (isManager) {
                 IconButton(onClick = onDeleteClick) { // Delete button for manager
-                    Icon(Icons.Filled.Delete, contentDescription = "Delete Document", tint = MaterialTheme.colorScheme.error)
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Delete Document",
+                        tint = MaterialTheme.colorScheme.error
+                    )
                 }
             } else {
                 // Download icon for viewer (Android). The onClick for the Card will handle the download.
-                Icon(Icons.Filled.Download, contentDescription = "Download Document")
+                IconButton(onClick = {
+                    onDownloadFile()
+                }) {
+                    Icon(Icons.Filled.Download, contentDescription = "Download Document")
+                }
             }
         }
     }

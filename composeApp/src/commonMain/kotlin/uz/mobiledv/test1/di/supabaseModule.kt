@@ -16,6 +16,8 @@ import org.koin.dsl.module
 
 
 const val BUCKET = "test"
+const val DOCUMENT = "documents"
+const val FOLDER = "folders"
 const val URL = "https://xovedzejjcuoqzrqbyzf.supabase.co"
 const val KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhvdmVkemVqamN1b3F6cnFieXpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgwMTIxMjAsImV4cCI6MjA2MzU4ODEyMH0.bAvwpKnLijAS2kvrXOwM4QBqulsRUbdE91KEWnwq2b0"
 val supabaseStorageModule = module {

@@ -1,6 +1,8 @@
 package uz.mobiledv.test1
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -15,6 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import io.github.jan.supabase.auth.status.SessionStatus
+import io.github.jan.supabase.realtime.Column
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 import uz.mobiledv.test1.screens.FolderDetailScreen
@@ -48,7 +51,8 @@ fun App() {
                 }
             } else if (sessionStatus is SessionStatus.Authenticated) {
                 if (navController.currentDestination?.route != "folders" &&
-                    !navController.currentDestination?.route.orEmpty().startsWith("folderDetail")) {
+                    !navController.currentDestination?.route.orEmpty().startsWith("folderDetail")
+                ) {
                     navController.navigate("folders") {
                         popUpTo("login") { inclusive = true } // Clear login from backstack
                         launchSingleTop = true
@@ -59,7 +63,11 @@ fun App() {
 
 
         if (startDestination == "loading" && sessionStatus !is SessionStatus.Authenticated && sessionStatus !is SessionStatus.NotAuthenticated) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 CircularProgressIndicator()
                 Text(
                     when (sessionStatus) {

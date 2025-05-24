@@ -71,10 +71,12 @@ fun FolderDetailScreen(
                 snackbarHostState.showSnackbar(state.message)
                 viewModel.clearFileDownloadStatus()
             }
+
             is FileDownloadUiState.Error -> {
                 snackbarHostState.showSnackbar("Download Error: ${state.message}")
                 viewModel.clearFileDownloadStatus()
             }
+
             else -> Unit
         }
     }
@@ -162,6 +164,14 @@ fun FolderDetailScreen(
                                     document = document,
                                     isManager = isManager,
                                     onClick = {
+                                    },
+                                    onDeleteClick = {
+                                        if (isManager) {
+                                            // TODO: Implement a confirmation dialog before deleting
+                                            viewModel.deleteDocument(document) // We'll add this
+                                        }
+                                    },
+                                    onDownloadFile = {
                                         if (!isManager) {
                                             // Initiate download for Android
                                             viewModel.downloadFile(document) // We'll add this
@@ -170,12 +180,6 @@ fun FolderDetailScreen(
                                             scope.launch {
                                                 snackbarHostState.showSnackbar("Manager clicked: ${document.name}")
                                             }
-                                        }
-                                    },
-                                    onDeleteClick = {
-                                        if(isManager) {
-                                            // TODO: Implement a confirmation dialog before deleting
-                                            viewModel.deleteDocument(document) // We'll add this
                                         }
                                     }
                                 )
@@ -190,7 +194,7 @@ fun FolderDetailScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Text("Error: ${state.message}")
+                        Text("Error: ${state.message}", maxLines = 3)
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = { viewModel.loadDocumentsForFolder(folderId) }) {
                             Text("Retry")

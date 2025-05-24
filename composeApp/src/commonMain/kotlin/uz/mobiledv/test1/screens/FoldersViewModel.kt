@@ -19,6 +19,8 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import uz.mobiledv.test1.di.BUCKET
+import uz.mobiledv.test1.di.DOCUMENT
+import uz.mobiledv.test1.di.FOLDER
 import uz.mobiledv.test1.model.Document
 import uz.mobiledv.test1.model.Folder
 import uz.mobiledv.test1.util.FileData
@@ -99,7 +101,7 @@ class FoldersViewModel(
                 return@launch
             }
             try {
-                val folders = supabaseClient.postgrest["folders"]
+                val folders = supabaseClient.postgrest[FOLDER]
                     .select(columns = Columns.ALL) {
                         filter {
                             "user_id"
@@ -140,7 +142,7 @@ class FoldersViewModel(
                     createdAt = instant.toString(), // Set the specific date and time
                     // Supabase handles 'id' and 'created_at'
                 )
-                supabaseClient.postgrest["folders"].insert(
+                supabaseClient.postgrest[FOLDER].insert(
                     newFolder,
                     request = {}) // Explicitly no upsert
                 _operationStatus.value = "Folder '$name' created successfully."
@@ -156,7 +158,7 @@ class FoldersViewModel(
         viewModelScope.launch {
             getCurrentUserId() ?: return@launch // Ensure user is authenticated
             try {
-                supabaseClient.postgrest["folders"]
+                supabaseClient.postgrest[FOLDER]
                     .update(
                         {
                             set("name", name)
@@ -184,7 +186,7 @@ class FoldersViewModel(
             try {
                 // Consider deleting documents within the folder from storage and DB first
                 // For now, just deleting the folder record. Add cascade delete in Supabase DB or handle here.
-                supabaseClient.postgrest["folders"]
+                supabaseClient.postgrest[FOLDER]
                     .delete {
                         filter {
                             "id"
@@ -210,7 +212,7 @@ class FoldersViewModel(
                 return@launch
             }
             try {
-                val documents = supabaseClient.postgrest["documents"]
+                val documents = supabaseClient.postgrest[DOCUMENT]
                     .select {
                         filter {
                             "folder_id"
@@ -258,10 +260,9 @@ class FoldersViewModel(
                     storageFilePath = storagePath,
                     userId = currentUserId,
                     mimeType = fileData.mimeType,
-                    createdAt = Clock.System.now()
-                        .toString() // Supabase can also handle this with a default value
+                    createdAt = Clock.System.now().toString() // Supabase can also handle this with a default value
                 )
-                supabaseClient.postgrest["documents"].insert(documentMetadata)
+                supabaseClient.postgrest[DOCUMENT].insert(documentMetadata)
 
                 _fileUploadUiState.value =
                     FileUploadUiState.Success("File '${fileData.name}' uploaded.")
@@ -315,7 +316,7 @@ class FoldersViewModel(
 
             try {
                 // 1. Delete from Postgrest table
-                supabaseClient.postgrest["documents"].delete {
+                supabaseClient.postgrest[DOCUMENT].delete {
                     filter {
                         "id"
                         document.id

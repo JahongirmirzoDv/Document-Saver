@@ -39,7 +39,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import uz.mobiledv.test1.AppViewModel
 import uz.mobiledv.test1.data.AuthSettings
@@ -49,36 +51,53 @@ import uz.mobiledv.test1.data.AuthSettings
 fun LoginScreen(
     onLoginSuccess: () -> Unit, // Callback for successful login
     appViewModel: AppViewModel = koinViewModel(),
-    authSettings: AuthSettings = koinViewModel() // Inject AuthSettings
+    authSettings: AuthSettings = koinInject() // Inject AuthSettings
 ) {
-    var email by remember { mutableStateOf(authSettings.getLastLoggedInEmail() ?: "") } // Load last email
+    var email by remember { mutableStateOf(authSettings.getLastLoggedInEmail() ?: "") }
     var password by remember { mutableStateOf("") }
-    var isLoading by remember(appViewModel.sessionStatus.collectAsStateWithLifecycle().value) {
-        mutableStateOf(false) // Reset loading state based on session status changes if needed
-    }
-    var error by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) } // For client-side validation errors
     var passwordVisible by remember { mutableStateOf(false) }
-    var rememberMe by remember { mutableStateOf(authSettings.getLastLoggedInEmail() != null) } // Init based on saved email
+    var rememberMe by remember { mutableStateOf(authSettings.getLastLoggedInEmail() != null) }
 
     val loginAlert by appViewModel.loginAlert.collectAsStateWithLifecycle()
+    val sessionStatus by appViewModel.sessionStatus.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
 
+    // Handles Snackbar messages from the ViewModel (e.g., login success/failure)
     LaunchedEffect(loginAlert) {
         loginAlert?.let {
             snackbarHostState.showSnackbar(it)
+            isLoading = false // Stop loading when a message (error or info) is shown
             appViewModel.loginAlert.value = null // Clear the alert
         }
     }
-    LaunchedEffect(key1 = appViewModel.sessionStatus.collectAsStateWithLifecycle().value) {
-        // This effect will re-run whenever sessionStatus changes.
-        // We can use it to stop showing the loading indicator if a login attempt fails
-        // or to trigger navigation if it succeeds (though navigation is handled in App.kt).
-        isLoading = false // Assuming any change from a loading state means it's no longer loading here
-        // if (appViewModel.sessionStatus.value is SessionStatus.Authenticated) {
-        // onLoginSuccess() // Callback for navigation
-        // }
+
+
+    LaunchedEffect(sessionStatus) {
+        when (sessionStatus) {
+            is SessionStatus.Authenticated -> {
+                isLoading = false // Should be false if authenticated
+                // Navigation is typically handled in App.kt based on sessionStatus
+            }
+            is SessionStatus.NotAuthenticated -> {
+                // If a login attempt failed and resulted in NotAuthenticated,
+                // and loginAlert was not set (e.g. some other auth flow), ensure isLoading is false.
+                // However, loginAlert effect is the primary way to stop isLoading on API errors.
+                if (isLoading) { // Only set isLoading to false if it was true
+                    // This case might be redundant if loginAlert handles all error scenarios
+                }
+            }
+            is SessionStatus.Initializing -> {
+                // This state might be set by Supabase during session refresh, not directly by our login button
+                // isLoading = true // Uncomment if you want to show loading for this state too
+            }
+            else -> { // Covers MfaRequired, RefreshFailure, Initializing
+                isLoading = false // Ensure loading stops for other terminal/intermediate states
+            }
+        }
     }
 
 
@@ -90,7 +109,7 @@ fun LoginScreen(
         ) {
             Text(
                 text = "Welcome Back",
-                style = MaterialTheme.typography.headlineSmall, // Updated typography
+                style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(bottom = 32.dp)
             )
 
@@ -98,14 +117,11 @@ fun LoginScreen(
                 value = email,
                 onValueChange = {
                     email = it
-                    error = null
+                    error = null // Clear client-side error when user types
                 },
-                label = { Text("Email") }, // Changed from Username to Email
+                label = { Text("Email") },
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                isError = error?.contains("email", ignoreCase = true) == true || error?.contains(
-                    "credentials",
-                    ignoreCase = true
-                ) == true,
+                isError = error != null && (error?.contains("email", ignoreCase = true) == true || error?.contains("credentials", ignoreCase = true) == true),
                 singleLine = true
             )
 
@@ -113,7 +129,7 @@ fun LoginScreen(
                 value = password,
                 onValueChange = {
                     password = it
-                    error = null
+                    error = null // Clear client-side error when user types
                 },
                 label = { Text("Password") },
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
@@ -125,20 +141,20 @@ fun LoginScreen(
                         Icon(imageVector = image, description)
                     }
                 },
-                isError = error?.contains("password", ignoreCase = true) == true || error?.contains(
-                    "credentials",
-                    ignoreCase = true
-                ) == true,
+                isError = error != null && (error?.contains("password", ignoreCase = true) == true || error?.contains("credentials", ignoreCase = true) == true),
                 singleLine = true
             )
 
-            if (error != null && error?.contains("credentials", ignoreCase = true) == true) {
-                Text(
-                    error!!,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
+            // Display client-side validation errors
+            error?.let { currentError ->
+                if (!currentError.contains("credentials", ignoreCase = true)) { // Only show if not a server error
+                    Text(
+                        currentError,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
             }
 
 
@@ -150,9 +166,9 @@ fun LoginScreen(
                     checked = rememberMe,
                     onCheckedChange = {
                         rememberMe = it
-                        if (!it) { // If unchecked, clear saved email
+                        if (!it) {
                             authSettings.saveLastLoggedInEmail(null)
-                        } else if (email.isNotBlank()) { // If checked and email is present, save it
+                        } else if (email.isNotBlank()) {
                             authSettings.saveLastLoggedInEmail(email)
                         }
                     }
@@ -163,27 +179,29 @@ fun LoginScreen(
 
             Button(
                 onClick = {
-                    var isValid = true
+                    var localValidationError = ""
                     if (email.isBlank()) {
-                        error = "Email cannot be empty"
-                        isValid = false
+                        localValidationError += "Email cannot be empty.\n"
                     }
                     if (password.isBlank()) {
-                        error = (error?.plus("\nPassword cannot be empty") ?: "Password cannot be empty").trim()
-                        isValid = false
+                        localValidationError += "Password cannot be empty."
                     }
-                    if (!isValid) return@Button
+
+                    if (localValidationError.isNotBlank()) {
+                        error = localValidationError.trim()
+                        return@Button
+                    }
 
                     isLoading = true
-                    error = null
+                    error = null // Clear previous client-side errors before login attempt
                     if (rememberMe) {
                         authSettings.saveLastLoggedInEmail(email)
                     } else {
-                        authSettings.saveLastLoggedInEmail(null) // Clear if not remember me
+                        authSettings.saveLastLoggedInEmail(null)
                     }
                     appViewModel.login(email, password, rememberMe)
                 },
-                enabled = !isLoading,
+                enabled = !isLoading, // Button is enabled if not loading
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(48.dp)
             ) {
                 if (isLoading) {
@@ -195,10 +213,8 @@ fun LoginScreen(
                     Text("Login")
                 }
             }
-            // You might want a sign-up button/link here too
             TextButton(
                 onClick = {
-                    // Navigate to sign-up or show sign-up fields
                     scope.launch { snackbarHostState.showSnackbar("Sign up not implemented yet.") }
                 },
                 modifier = Modifier.padding(top = 8.dp)
