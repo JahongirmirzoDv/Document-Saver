@@ -106,9 +106,7 @@ class FoldersViewModel(
                 val folders = supabaseClient.postgrest[FOLDER]
                     .select(columns = Columns.ALL) {
                         filter {
-                            "user_id"
-                            FilterOperator.EQ
-                            currentUserId
+                            eq("user_id",currentUserId)
                         }
                         order("name", Order.ASCENDING)
                     }
@@ -170,9 +168,7 @@ class FoldersViewModel(
                         }
                     ) {
                         filter {
-                            "id"
-                            FilterOperator.EQ
-                            folderId
+                            eq("id", folderId)
                         }
                     }
                 _operationStatus.value = "Folder '$name' updated successfully."
@@ -193,9 +189,7 @@ class FoldersViewModel(
                 supabaseClient.postgrest[FOLDER]
                     .delete {
                         filter {
-                            "id"
-                            FilterOperator.EQ
-                            folderId
+                            eq("id",folderId)
                         }
                     }
                 _operationStatus.value = "Folder deleted successfully."
