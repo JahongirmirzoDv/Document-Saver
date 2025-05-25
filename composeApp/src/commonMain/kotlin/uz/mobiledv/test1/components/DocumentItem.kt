@@ -1,7 +1,6 @@
 // commonMain/kotlin/uz/mobiledv/test1/components/DocumentItem.kt
 package uz.mobiledv.test1.components
 
-// ... imports ...
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,16 +25,16 @@ import uz.mobiledv.test1.model.Document
 @Composable
 fun DocumentItem(
     document: Document,
-    isManager: Boolean,
-    onClick: () -> Unit,
-    onDeleteClick: () -> Unit, // Added for managers
-    onDownloadFile: () -> Unit
+    isManager: Boolean, // To control visibility of delete button
+    onClick: () -> Unit, // General click on the card
+    onDeleteClick: () -> Unit, // For the delete icon button
+    onDownloadFile: () -> Unit // For the download icon button
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp)
-            .clickable { onClick() }
+            .padding(vertical = 4.dp, horizontal = 8.dp) // Added horizontal padding
+            .clickable { onClick() } // Card click can trigger download or view based on role
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -43,29 +42,32 @@ fun DocumentItem(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(document.name, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "Folder ID: ${document.folderId}",
-                    style = MaterialTheme.typography.bodySmall
-                ) // Example: show folderId or other metadata
+                // document.userId?.let {
+                //    Text("Uploader: ${it.take(8)}...", style = MaterialTheme.typography.bodySmall)
+                // }
                 document.mimeType?.let {
                     Text("Type: $it", style = MaterialTheme.typography.bodySmall)
                 }
+                 document.createdAt?.let {
+                    Text("Created: $it", style = MaterialTheme.typography.labelSmall) // Format date appropriately
+                 }
             }
             Spacer(modifier = Modifier.width(8.dp))
-            if (isManager) {
-                IconButton(onClick = onDeleteClick) { // Delete button for manager
+
+            // Download button is available for all users
+            IconButton(onClick = {
+                onDownloadFile()
+            }) {
+                Icon(Icons.Filled.Download, contentDescription = "Download Document")
+            }
+
+            if (isManager) { // Delete button only for managers
+                IconButton(onClick = onDeleteClick) {
                     Icon(
                         Icons.Filled.Delete,
                         contentDescription = "Delete Document",
                         tint = MaterialTheme.colorScheme.error
                     )
-                }
-            } else {
-                // Download icon for viewer (Android). The onClick for the Card will handle the download.
-                IconButton(onClick = {
-                    onDownloadFile()
-                }) {
-                    Icon(Icons.Filled.Download, contentDescription = "Download Document")
                 }
             }
         }

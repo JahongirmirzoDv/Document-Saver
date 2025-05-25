@@ -61,6 +61,9 @@ class AppViewModel(
         }
     }
 
+    // isManager defines if the user has administrative capabilities (typically on Desktop)
+    // This primarily controls UI elements for actions like creating users, folders, etc.
+    // Read access to data is now intended to be universal for all authenticated users.
     val isManager: Boolean
         get() = (customSessionStatus.value as? CustomSessionStatus.Authenticated)?.user?.isAdmin == true && currentPlatform == PlatformType.DESKTOP
 
@@ -114,8 +117,9 @@ class AppViewModel(
     fun adminCreateUser(username: String, email: String, password: String, isAdmin: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             operationAlert.value = null
+            // User creation is an administrative action, controlled by isManager
             if (!isManager) {
-                operationAlert.value = "Only admin can create users."
+                operationAlert.value = "Only designated managers (Desktop admin) can create users."
                 return@launch
             }
 
@@ -137,31 +141,20 @@ class AppViewModel(
                 val plainTextPasswordForDb = storePlainTextPassword(password)
 
                 val newUser = User(
-                    id = uuid4().toString(), // Make sure uuid4() is correctly imported and working
+                    id = uuid4().toString(),
                     username = username,
                     email = email,
-                    passwordHash = plainTextPasswordForDb, // This should match the property name in User.kt
-                    isAdmin = false,
+                    passwordHash = plainTextPasswordForDb,
+                    isAdmin = isAdmin, // Admin flag set by the creator
                     createdAt = Clock.System.now().toString()
                 )
 
-                // MODIFIED LINE: Insert the User object directly
-                supabaseClient.postgrest[USERS_TABLE].insert(newUser) {
-                    // If your DB automatically handles 'id' or 'created_at' on insert
-                    // and you don't want to send them, or if you want to ensure
-                    // encodeDefaults is handled in a specific way for this call,
-                    // you might need specific Json configuration or ensure the Supabase
-                    // client's default Json configuration works for your User class.
-                    // By default, if User class has default values for some fields,
-                    // they might not be sent unless encodeDefaults = true in Json config.
-                    // However, all fields in the `newUser` object above are explicitly set.
-                }
-
+                supabaseClient.postgrest[USERS_TABLE].insert(newUser)
                 operationAlert.value = "User '$username' created successfully."
 
             } catch (e: Exception) {
                 operationAlert.value = "Error creating user: ${e.message}"
-                e.printStackTrace() // Print full stack trace to see more details
+                e.printStackTrace()
             }
         }
     }

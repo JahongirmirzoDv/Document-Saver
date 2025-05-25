@@ -12,6 +12,7 @@ import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.resumable.SettingsResumableCache
 import io.github.jan.supabase.storage.storage
+import kotlinx.serialization.json.Json
 import org.koin.dsl.module
 
 

@@ -26,8 +26,6 @@ import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import uz.mobiledv.test1.AppViewModel
 import uz.mobiledv.test1.model.Folder
-// import uz.mobiledv.test1.util.PlatformType // Not directly used here, AppViewModel handles platform distinction
-// import uz.mobiledv.test1.util.getCurrentPlatform // Not directly used here
 import uz.mobiledv.test1.util.isValidEmail
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,10 +35,11 @@ fun FoldersScreen(
     viewModel: FoldersViewModel = koinViewModel(),
     onFolderClick: (Folder) -> Unit,
     onLogout: () -> Unit,
-    navController: NavController // Keep if other navigation is needed from here
+    navController: NavController
 ) {
-    val isManager = appViewModel.isManager // Get from AppViewModel
-    println("is admin: ${isManager}")
+    // isManager determines if action buttons (add folder, create user) are shown.
+    // Data visibility is for all authenticated users.
+    val isManager by remember { derivedStateOf { appViewModel.isManager } }
 
 
     var showAddFolderDialog by remember { mutableStateOf(false) }
@@ -49,11 +48,24 @@ fun FoldersScreen(
     var showCreateUserDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
-    // val scope = rememberCoroutineScope() // Not used directly, AppViewModel handles alerts
 
     val foldersUiState by viewModel.foldersUiState.collectAsStateWithLifecycle()
     val folderOperationStatus by viewModel.operationStatus.collectAsStateWithLifecycle()
-    val userCreationAlert by appViewModel.operationAlert.collectAsStateWithLifecycle() // Listen to AppViewModel's alert
+    val userCreationAlert by appViewModel.operationAlert.collectAsStateWithLifecycle()
+
+    // Load folders when the screen is first composed or if the current user changes
+    // (e.g., after logout and login with a different user, though App.kt handles main navigation).
+    // Or, if foldersUiState is Idle and user is authenticated.
+    val currentUser = appViewModel.getCurrentUser()
+    LaunchedEffect(Unit, currentUser) { // Re-load if user context changes or initially.
+        if (currentUser != null && foldersUiState is FoldersUiState.Idle) {
+            viewModel.loadFolders()
+        } else if (currentUser == null && foldersUiState !is FoldersUiState.Error) {
+            // If user becomes null (logged out), potentially clear folders or show error
+            // This case should ideally be handled by navigation in App.kt redirecting to login.
+        }
+    }
+
 
     LaunchedEffect(folderOperationStatus) {
         folderOperationStatus?.let { message ->
@@ -62,17 +74,16 @@ fun FoldersScreen(
         }
     }
 
-    // This handles alerts from AppViewModel (e.g., for user creation)
     LaunchedEffect(userCreationAlert) {
         userCreationAlert?.let { message ->
             snackbarHostState.showSnackbar(message)
-            appViewModel.operationAlert.value = null // Clear AppViewModel's alert
+            appViewModel.operationAlert.value = null
             if (message.startsWith("User") && (message.contains("created successfully") || message.contains("Error creating user"))) {
                 if (!message.contains("already exists", ignoreCase = true) &&
-                    !message.contains("Invalid", ignoreCase = true) && // Keep dialog for client-side errors
+                    !message.contains("Invalid", ignoreCase = true) &&
                     !message.contains("Password", ignoreCase = true) &&
                     !message.contains("cannot be empty", ignoreCase = true) ) {
-                    showCreateUserDialog = false // Close dialog on successful creation or definitive server error
+                    showCreateUserDialog = false
                 }
             }
         }
@@ -81,9 +92,9 @@ fun FoldersScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isManager) "Admin Folders" else "My Folders") },
+                title = { Text("Folders") }, // Unified title
                 actions = {
-                    if (isManager) {
+                    if (isManager) { // Actions for managers (Desktop Admin)
                         IconButton(onClick = { showAddFolderDialog = true }) {
                             Icon(Icons.Filled.Add, "Add Folder")
                         }
@@ -94,7 +105,7 @@ fun FoldersScreen(
                         }
                     }
                     IconButton(onClick = {
-                        onLogout() // This will trigger AppViewModel.logout()
+                        onLogout() // Triggers AppViewModel.logout()
                     }) {
                         Icon(Icons.AutoMirrored.Filled.Logout, "Logout")
                     }
@@ -123,6 +134,7 @@ fun FoldersScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
+                            // Text for all users if no folders exist.
                             Text(if (isManager) "No folders yet. Tap '+' to create one!" else "No folders available.")
                         }
                     } else {
@@ -133,7 +145,7 @@ fun FoldersScreen(
                                 FolderListItem(
                                     folder = folder,
                                     onClick = { onFolderClick(folder) },
-                                    isManager = isManager, // Pass isManager status
+                                    isManager = isManager, // Pass for edit/delete buttons
                                     onEdit = { if (isManager) showEditFolderDialog = folder },
                                     onDelete = { if (isManager) showDeleteFolderDialog = folder }
                                 )
@@ -162,13 +174,16 @@ fun FoldersScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Text("Initializing...")
+                        Text("Initializing folder view...")
+                        // Optionally trigger loadFolders if authenticated and idle
+                        // LaunchedEffect above handles this.
                     }
                 }
             }
         }
     }
 
+    // Dialogs remain conditional on isManager for CUD operations
     if (isManager) {
         if (showAddFolderDialog) {
             FolderDialog(
@@ -195,7 +210,7 @@ fun FoldersScreen(
             AlertDialog(
                 onDismissRequest = { showDeleteFolderDialog = null },
                 title = { Text("Delete Folder") },
-                text = { Text("Are you sure you want to delete folder \"${folder.name}\"? This action cannot be undone.") },
+                text = { Text("Are you sure you want to delete folder \"${folder.name}\"? This action cannot be undone and might delete its contents.") },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -215,9 +230,9 @@ fun FoldersScreen(
             CreateUserDialog(
                 onDismiss = { showCreateUserDialog = false },
                 onConfirm = { username, email, password ->
-                    // Admin creating a regular (non-admin) user by default
+                    // Manager creating a user. Can specify if they are admin or not.
+                    // For simplicity, new users created by admin are not admins by default.
                     appViewModel.adminCreateUser(username, email, password, isAdmin = false)
-                    // Dialog closure is handled by LaunchedEffect observing userCreationAlert
                 }
             )
         }
@@ -225,10 +240,10 @@ fun FoldersScreen(
 }
 
 @Composable
-private fun FolderListItem( // No changes needed here if it only depends on isManager for UI elements
+private fun FolderListItem(
     folder: Folder,
     onClick: () -> Unit,
-    isManager: Boolean,
+    isManager: Boolean, // Controls visibility of edit/delete buttons
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -258,14 +273,14 @@ private fun FolderListItem( // No changes needed here if it only depends on isMa
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                folder.createdAt?.let {
-                    Text(
-                        text = "Created: $it", // You might want to format this date/time
-                        style = MaterialTheme.typography.labelSmall
-                    )
-                }
+                // folder.createdAt?.let { // Optional: Display creation date or other metadata
+                //    Text(
+                //        text = "Created by user: ${folder.userId.take(8)}... on $it", // Example
+                //        style = MaterialTheme.typography.labelSmall
+                //    )
+                // }
             }
-            if (isManager) {
+            if (isManager) { // Edit and Delete buttons only for managers
                 Row {
                     IconButton(onClick = onEdit, modifier = Modifier.size(40.dp)) {
                         Icon(Icons.Filled.Edit, "Edit Folder", tint = MaterialTheme.colorScheme.primary)
@@ -286,7 +301,7 @@ private fun FolderListItem( // No changes needed here if it only depends on isMa
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FolderDialog( // No changes needed
+private fun FolderDialog(
     folder: Folder? = null,
     onDismiss: () -> Unit,
     onConfirm: (name: String, description: String) -> Unit
@@ -322,7 +337,9 @@ private fun FolderDialog( // No changes needed
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = description,
-                    onValueChange = { description = it },
+                    onValueChange = {
+                        description = it
+                    },
                     label = { Text("Description (Optional)") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
@@ -354,11 +371,11 @@ private fun CreateUserDialog(
     onDismiss: () -> Unit,
     onConfirm: (username: String, email: String, pass: String) -> Unit
 ) {
-    var username by remember { mutableStateOf("") } // Added username
+    var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-    var usernameError by remember { mutableStateOf<String?>(null) } // Added
+    var usernameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
 
@@ -367,7 +384,7 @@ private fun CreateUserDialog(
         title = { Text("Create New User") },
         text = {
             Column {
-                OutlinedTextField( // Username field
+                OutlinedTextField(
                     value = username,
                     onValueChange = {
                         username = it
