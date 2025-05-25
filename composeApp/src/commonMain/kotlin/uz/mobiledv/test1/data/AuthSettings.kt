@@ -1,23 +1,22 @@
+// Located in: jahongirmirzodv/test.1.2/Test.1.2-e8bc22d6ec882d29fdc4fa507b210d7398d64cde/composeApp/src/commonMain/kotlin/uz/mobiledv/test1/data/AuthSettings.kt
 package uz.mobiledv.test1.data
 
 import com.russhwolf.settings.Settings
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import uz.mobiledv.test1.model.User // Assuming User is in this package
+import uz.mobiledv.test1.model.User
 
 interface AuthSettings {
-    fun saveLastLoggedInEmail(email: String?)
-    fun getLastLoggedInEmail(): String?
-    fun saveLoginStatus(isLoggedIn: Boolean)
-    fun getLoginStatus(): Boolean
-    fun saveUser(user: User?) // New
-    fun getUser(): User?      // New
+    fun saveLastLoggedInEmail(email: String?) // Keep for convenience if desired
+    fun getLastLoggedInEmail(): String?    // Keep for convenience if desired
+
+    fun saveCurrentUser(user: User?)
+    fun getCurrentUser(): User?
     fun clearAuthSettings()
 }
 
 internal const val KEY_LAST_LOGGED_IN_EMAIL = "last_logged_in_email"
-internal const val KEY_IS_LOGGED_IN = "is_logged_in"
-internal const val KEY_USER_DATA = "user_data" // New key
+internal const val KEY_CURRENT_USER_DATA = "current_user_data" // Changed from KEY_USER_DATA
 
 class AuthSettingsImpl(private val settings: Settings, private val json: Json) : AuthSettings {
 
@@ -33,38 +32,30 @@ class AuthSettingsImpl(private val settings: Settings, private val json: Json) :
         return settings.getStringOrNull(KEY_LAST_LOGGED_IN_EMAIL)
     }
 
-    override fun saveLoginStatus(isLoggedIn: Boolean) {
-        settings.putBoolean(KEY_IS_LOGGED_IN, isLoggedIn)
-    }
-
-    override fun getLoginStatus(): Boolean {
-        return settings.getBoolean(KEY_IS_LOGGED_IN, false)
-    }
-
-    override fun saveUser(user: User?) { // New
+    override fun saveCurrentUser(user: User?) {
         if (user != null) {
             try {
-                val userJson = json.encodeToString(user)
-                settings.putString(KEY_USER_DATA, userJson)
+                // Create a new User object without the transient password for storage
+                val userToStore = user.copy(transientPasswordForOps = null)
+                val userJson = json.encodeToString(userToStore)
+                settings.putString(KEY_CURRENT_USER_DATA, userJson)
             } catch (e: Exception) {
-                // Handle serialization error, e.g., log it
                 println("Error saving user to settings: ${e.message}")
-                settings.remove(KEY_USER_DATA) // Clear if serialization fails
+                settings.remove(KEY_CURRENT_USER_DATA)
             }
         } else {
-            settings.remove(KEY_USER_DATA)
+            settings.remove(KEY_CURRENT_USER_DATA)
         }
     }
 
-    override fun getUser(): User? { // New
-        val userJson = settings.getStringOrNull(KEY_USER_DATA)
+    override fun getCurrentUser(): User? {
+        val userJson = settings.getStringOrNull(KEY_CURRENT_USER_DATA)
         return if (userJson != null) {
             try {
                 json.decodeFromString<User>(userJson)
             } catch (e: Exception) {
-                // Handle deserialization error, e.g., log it
                 println("Error reading user from settings: ${e.message}")
-                null // Return null if deserialization fails
+                null
             }
         } else {
             null
@@ -73,7 +64,6 @@ class AuthSettingsImpl(private val settings: Settings, private val json: Json) :
 
     override fun clearAuthSettings() {
         settings.remove(KEY_LAST_LOGGED_IN_EMAIL)
-        settings.remove(KEY_IS_LOGGED_IN)
-        settings.remove(KEY_USER_DATA) // Clear user data
+        settings.remove(KEY_CURRENT_USER_DATA)
     }
 }

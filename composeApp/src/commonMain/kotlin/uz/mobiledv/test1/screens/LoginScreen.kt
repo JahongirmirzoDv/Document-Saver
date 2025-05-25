@@ -1,3 +1,4 @@
+// Located in: jahongirmirzodv/test.1.2/Test.1.2-e8bc22d6ec882d29fdc4fa507b210d7398d64cde/composeApp/src/commonMain/kotlin/uz/mobiledv/test1/screens/LoginScreen.kt
 package uz.mobiledv.test1.screens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -39,63 +40,54 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.jan.supabase.auth.status.SessionStatus
+// import io.github.jan.supabase.auth.status.SessionStatus // Not needed anymore
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import uz.mobiledv.test1.AppViewModel
+import uz.mobiledv.test1.CustomSessionStatus
 import uz.mobiledv.test1.data.AuthSettings
+import uz.mobiledv.test1.util.isValidEmail
 
 
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit, // Callback for successful login
     appViewModel: AppViewModel = koinViewModel(),
-    authSettings: AuthSettings = koinInject() // Inject AuthSettings
+    authSettings: AuthSettings = koinInject()
 ) {
-    var email by remember { mutableStateOf(authSettings.getLastLoggedInEmail() ?: "") }
+    // Use email or username for login
+    var identifier by remember { mutableStateOf(authSettings.getLastLoggedInEmail() ?: "") }
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) } // For client-side validation errors
+    var clientError by remember { mutableStateOf<String?>(null) }
     var passwordVisible by remember { mutableStateOf(false) }
     var rememberMe by remember { mutableStateOf(authSettings.getLastLoggedInEmail() != null) }
 
-    val loginAlert by appViewModel.loginAlert.collectAsStateWithLifecycle()
-    val sessionStatus by appViewModel.sessionStatus.collectAsStateWithLifecycle()
+    val operationAlert by appViewModel.operationAlert.collectAsStateWithLifecycle()
+    val customSessionStatus by appViewModel.customSessionStatus.collectAsStateWithLifecycle()
+
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-
-    // Handles Snackbar messages from the ViewModel (e.g., login success/failure)
-    LaunchedEffect(loginAlert) {
-        loginAlert?.let {
+    LaunchedEffect(operationAlert) {
+        operationAlert?.let {
             snackbarHostState.showSnackbar(it)
-            isLoading = false // Stop loading when a message (error or info) is shown
-            appViewModel.loginAlert.value = null // Clear the alert
+            appViewModel.operationAlert.value = null // Clear the alert
         }
     }
 
-
-    LaunchedEffect(sessionStatus) {
-        when (sessionStatus) {
-            is SessionStatus.Authenticated -> {
-                isLoading = false // Should be false if authenticated
-                // Navigation is typically handled in App.kt based on sessionStatus
+    LaunchedEffect(customSessionStatus) {
+        when (customSessionStatus) {
+            is CustomSessionStatus.Authenticated -> {
+                isLoading = false
+                onLoginSuccess() // Trigger navigation
             }
-            is SessionStatus.NotAuthenticated -> {
-                // If a login attempt failed and resulted in NotAuthenticated,
-                // and loginAlert was not set (e.g. some other auth flow), ensure isLoading is false.
-                // However, loginAlert effect is the primary way to stop isLoading on API errors.
-                if (isLoading) { // Only set isLoading to false if it was true
-                    // This case might be redundant if loginAlert handles all error scenarios
-                }
+            is CustomSessionStatus.NotAuthenticated -> {
+                isLoading = false // Stop loading if auth fails or on initial load
             }
-            is SessionStatus.Initializing -> {
-                // This state might be set by Supabase during session refresh, not directly by our login button
-                // isLoading = true // Uncomment if you want to show loading for this state too
-            }
-            else -> { // Covers MfaRequired, RefreshFailure, Initializing
-                isLoading = false // Ensure loading stops for other terminal/intermediate states
+            is CustomSessionStatus.Initializing -> {
+                isLoading = true // Show loading indicator
             }
         }
     }
@@ -108,20 +100,20 @@ fun LoginScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Welcome Back",
+                text = "Login / Sign Up",
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(bottom = 32.dp)
             )
 
             OutlinedTextField(
-                value = email,
+                value = identifier,
                 onValueChange = {
-                    email = it
-                    error = null // Clear client-side error when user types
+                    identifier = it
+                    clientError = null
                 },
-                label = { Text("Email") },
+                label = { Text("Username or Email") },
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                isError = error != null && (error?.contains("email", ignoreCase = true) == true || error?.contains("credentials", ignoreCase = true) == true),
+                isError = clientError != null && clientError?.contains("identifier", ignoreCase = true) == true,
                 singleLine = true
             )
 
@@ -129,7 +121,7 @@ fun LoginScreen(
                 value = password,
                 onValueChange = {
                     password = it
-                    error = null // Clear client-side error when user types
+                    clientError = null
                 },
                 label = { Text("Password") },
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
@@ -141,22 +133,18 @@ fun LoginScreen(
                         Icon(imageVector = image, description)
                     }
                 },
-                isError = error != null && (error?.contains("password", ignoreCase = true) == true || error?.contains("credentials", ignoreCase = true) == true),
+                isError = clientError != null && clientError?.contains("password", ignoreCase = true) == true,
                 singleLine = true
             )
 
-            // Display client-side validation errors
-            error?.let { currentError ->
-                if (!currentError.contains("credentials", ignoreCase = true)) { // Only show if not a server error
-                    Text(
-                        currentError,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
+            clientError?.let { currentError ->
+                Text(
+                    currentError,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
             }
-
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
@@ -166,42 +154,31 @@ fun LoginScreen(
                     checked = rememberMe,
                     onCheckedChange = {
                         rememberMe = it
-                        if (!it) {
-                            authSettings.saveLastLoggedInEmail(null)
-                        } else if (email.isNotBlank()) {
-                            authSettings.saveLastLoggedInEmail(email)
-                        }
+                        // Logic to save/clear email preference moved to login action
                     }
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Remember Email")
+                Text("Remember me")
             }
 
             Button(
                 onClick = {
                     var localValidationError = ""
-                    if (email.isBlank()) {
-                        localValidationError += "Email cannot be empty.\n"
+                    if (identifier.isBlank()) {
+                        localValidationError += "Username/Email cannot be empty.\n"
                     }
                     if (password.isBlank()) {
                         localValidationError += "Password cannot be empty."
                     }
 
                     if (localValidationError.isNotBlank()) {
-                        error = localValidationError.trim()
+                        clientError = localValidationError.trim()
                         return@Button
                     }
-
-                    isLoading = true
-                    error = null // Clear previous client-side errors before login attempt
-                    if (rememberMe) {
-                        authSettings.saveLastLoggedInEmail(email)
-                    } else {
-                        authSettings.saveLastLoggedInEmail(null)
-                    }
-                    appViewModel.login(email, password, rememberMe)
+                    clientError = null
+                    appViewModel.login(identifier, password, rememberMe)
                 },
-                enabled = !isLoading, // Button is enabled if not loading
+                enabled = !isLoading,
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(48.dp)
             ) {
                 if (isLoading) {
@@ -213,22 +190,39 @@ fun LoginScreen(
                     Text("Login")
                 }
             }
-            TextButton(
+            TextButton( // Example: This could navigate to a separate sign-up screen or show a sign-up dialog
                 onClick = {
-                    scope.launch { snackbarHostState.showSnackbar("Sign up not implemented yet.") }
+                    // For simplicity, we'll use the adminCreateUser for "Sign Up" from a non-admin context.
+                    // In a real app, you'd have a separate sign-up flow.
+                    // This example assumes 'identifier' is email for sign-up.
+                    // You'd likely have separate fields for username, email, password in a real sign-up form.
+                    if (identifier.isBlank() || password.isBlank()) {
+                        clientError = "Email and password are required for sign-up."
+                        return@TextButton
+                    }
+                    if (!isValidEmail(identifier)) {
+                        clientError = "Please enter a valid email to sign up."
+                        return@TextButton
+                    }
+                    if (password.length < 6) {
+                        clientError = "Password must be at least 6 characters for sign up."
+                        return@TextButton
+                    }
+                    clientError = null
+                    // Non-admin users creating their own accounts. isAdmin will be false.
+                    // The `adminCreateUser` in AppViewModel could be split or adapted
+                    // if you need distinct sign-up vs admin-creation logic.
+                    // For now, we'll use a simplified approach:
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Sign-up: Desktop admin needs to create your account, or this feature needs full implementation with a dedicated sign-up screen/flow.")
+                        // If you want users to self-register:
+                        // appViewModel.selfRegisterUser(identifier, password) // You'd need to create this method
+                    }
                 },
                 modifier = Modifier.padding(top = 8.dp)
             ) {
-                Text("Don't have an account? Sign Up")
+                Text("Don't have an account? Contact Admin / Sign Up (Basic)")
             }
         }
     }
 }
-
-// @Preview
-// @Composable
-// fun PreviewLoginScreen() {
-//    MaterialTheme {
-//        LoginScreen(onLoginSuccess = {}, appViewModel = koinViewModel(), authSettings = koinViewModel())
-//    }
-// }

@@ -1,96 +1,184 @@
+// Located in: jahongirmirzodv/test.1.2/Test.1.2-e8bc22d6ec882d29fdc4fa507b210d7398d64cde/composeApp/src/commonMain/kotlin/uz/mobiledv/test1/AppViewModel.kt
 package uz.mobiledv.test1
-
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.benasher44.uuid.uuid4
 import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.auth.OtpType
-import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.auth.mfa.FactorType
-import io.github.jan.supabase.auth.mfa.MfaFactor
-import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
+import uz.mobiledv.test1.data.AuthSettings
+import uz.mobiledv.test1.di.USERS_TABLE
+import uz.mobiledv.test1.model.User
 import uz.mobiledv.test1.util.PlatformType
 import uz.mobiledv.test1.util.getCurrentPlatform
 
+// WARNING: PLAIN TEXT PASSWORD STORAGE AND CHECKING - EXTREMELY INSECURE
+fun storePlainTextPassword(password: String): String {
+    println("WARNING: Storing plain text password. This is EXTREMELY INSECURE.")
+    return password // Store the password as is
+}
+
+fun checkPlainTextPassword(plainPasswordFromInput: String, plainPasswordFromDb: String): Boolean {
+    println("WARNING: Comparing plain text passwords. This is EXTREMELY INSECURE.")
+    return plainPasswordFromInput == plainPasswordFromDb // Direct comparison
+}
+
+
+// Custom Session Status
+sealed class CustomSessionStatus {
+    data object Initializing : CustomSessionStatus()
+    data class Authenticated(val user: User) : CustomSessionStatus()
+    data object NotAuthenticated : CustomSessionStatus()
+}
 
 class AppViewModel(
-    val supabaseClient: SupabaseClient
+    private val supabaseClient: SupabaseClient,
+    private val authSettings: AuthSettings
 ) : ViewModel() {
 
     val currentPlatform: PlatformType = getCurrentPlatform()
-    val isManager: Boolean = currentPlatform == PlatformType.DESKTOP
 
-    val sessionStatus = supabaseClient.auth.sessionStatus
-    val loginAlert = MutableStateFlow<String?>(null)
-    val statusFlow = supabaseClient.auth.mfa.statusFlow
-    val enrolledFactor = MutableStateFlow<MfaFactor<FactorType.TOTP.Response>?>(null)
+    private val _customSessionStatus = MutableStateFlow<CustomSessionStatus>(CustomSessionStatus.Initializing)
+    val customSessionStatus: StateFlow<CustomSessionStatus> = _customSessionStatus.asStateFlow()
 
-    //Auth
+    val operationAlert = MutableStateFlow<String?>(null)
 
-    fun signUp(email: String, password: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            kotlin.runCatching {
-                supabaseClient.auth.signUpWith(Email) {
-                    this.email = email
-                    this.password = password
-                }
-            }.onSuccess {
-                loginAlert.value =
-                    "Successfully registered! Check your E-Mail to verify your account."
-            }.onFailure {
-                loginAlert.value = "There was an error while registering: ${it.message}"
+    init {
+        viewModelScope.launch {
+            val storedUser = authSettings.getCurrentUser()
+            if (storedUser != null) {
+                _customSessionStatus.value = CustomSessionStatus.Authenticated(storedUser)
+            } else {
+                _customSessionStatus.value = CustomSessionStatus.NotAuthenticated
             }
         }
     }
 
-    fun adminCreateUser(email: String, password: String) {
+    val isManager: Boolean
+        get() = (customSessionStatus.value as? CustomSessionStatus.Authenticated)?.user?.isAdmin == true && currentPlatform == PlatformType.DESKTOP
+
+
+    fun login(identifier: String, password: String, rememberMe: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            kotlin.runCatching {
-                // Using the standard signUpWith for simplicity and to enforce email verification.
-                // If you have Supabase admin privileges and want to bypass email verification
-                // or set email_confirmed_at = true, you might explore admin-specific APIs
-                // (e.g., via a service role key on a backend or a secure Cloud Function).
-                // For a client-side desktop app, using the standard flow is often more secure.
-                supabaseClient.auth.signUpWith(Email) {
-                    this.email = email
-                    this.password = password
-                    // You could potentially add user_metadata here if needed, e.g.,
-                    // data = buildJsonObject { put("created_by_admin", true) }
+            _customSessionStatus.value = CustomSessionStatus.Initializing
+            operationAlert.value = null
+            try {
+                val userList = supabaseClient.postgrest[USERS_TABLE].select {
+                    filter {
+                        or {
+                            eq("username", identifier)
+                            eq("email", identifier)
+                        }
+                    }
+                    limit(1)
+                }.decodeList<User>()
+
+                if (userList.isNotEmpty()) {
+                    val user = userList.first()
+                    // Assuming passwordValue is the field in User data class
+                    if (user.passwordHash != null && checkPlainTextPassword(password, user.passwordHash!!)) {
+                        authSettings.saveCurrentUser(user)
+                        if (rememberMe && user.email != null) {
+                            authSettings.saveLastLoggedInEmail(user.email)
+                        } else if (!rememberMe) {
+                            authSettings.saveLastLoggedInEmail(null)
+                        }
+                        _customSessionStatus.value = CustomSessionStatus.Authenticated(user)
+                        operationAlert.value = "Login successful!"
+                    } else {
+                        authSettings.clearAuthSettings()
+                        _customSessionStatus.value = CustomSessionStatus.NotAuthenticated
+                        operationAlert.value = "Invalid username/email or password."
+                    }
+                } else {
+                    authSettings.clearAuthSettings()
+                    _customSessionStatus.value = CustomSessionStatus.NotAuthenticated
+                    operationAlert.value = "User not found."
                 }
-            }.onSuccess {
-                loginAlert.value =
-                    "User account created for $email. They need to check their email to verify the account."
-            }.onFailure {
-                loginAlert.value = "Error creating user account: ${it.message}"
+            } catch (e: Exception) {
+                e.printStackTrace()
+                authSettings.clearAuthSettings()
+                _customSessionStatus.value = CustomSessionStatus.NotAuthenticated
+                operationAlert.value = "Login error: ${e.message}"
             }
         }
     }
 
-    fun login(email: String, password: String, rememberMe: Boolean) {
+    fun adminCreateUser(username: String, email: String, password: String, isAdmin: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
-            kotlin.runCatching {
-                supabaseClient.auth.signInWith(Email) {
-                    this.email = email
-                    this.password = password
+            operationAlert.value = null
+            if (!isManager) {
+                operationAlert.value = "Only admin can create users."
+                return@launch
+            }
+
+            try {
+                val existingUserCount = supabaseClient.postgrest[USERS_TABLE].select(columns = Columns.ALL) {
+                    filter {
+                        or {
+                            eq("username", username)
+                            eq("email", email)
+                        }
+                    }
+                }.countOrNull()
+
+                if (existingUserCount != null && existingUserCount > 0) {
+                    operationAlert.value = "Username or email already exists."
+                    return@launch
                 }
 
-            }.onFailure {
-                it.printStackTrace()
-                loginAlert.value =
-                    "There was an error while logging in. Check your credentials and try again."
+                val plainTextPasswordForDb = storePlainTextPassword(password)
+
+                val newUser = User(
+                    id = uuid4().toString(), // Make sure uuid4() is correctly imported and working
+                    username = username,
+                    email = email,
+                    passwordHash = plainTextPasswordForDb, // This should match the property name in User.kt
+                    isAdmin = false,
+                    createdAt = Clock.System.now().toString()
+                )
+
+                // MODIFIED LINE: Insert the User object directly
+                supabaseClient.postgrest[USERS_TABLE].insert(newUser) {
+                    // If your DB automatically handles 'id' or 'created_at' on insert
+                    // and you don't want to send them, or if you want to ensure
+                    // encodeDefaults is handled in a specific way for this call,
+                    // you might need specific Json configuration or ensure the Supabase
+                    // client's default Json configuration works for your User class.
+                    // By default, if User class has default values for some fields,
+                    // they might not be sent unless encodeDefaults = true in Json config.
+                    // However, all fields in the `newUser` object above are explicitly set.
+                }
+
+                operationAlert.value = "User '$username' created successfully."
+
+            } catch (e: Exception) {
+                operationAlert.value = "Error creating user: ${e.message}"
+                e.printStackTrace() // Print full stack trace to see more details
             }
         }
     }
 
     fun logout() {
-        enrolledFactor.value = null
         viewModelScope.launch {
-            kotlin.runCatching {
-                supabaseClient.auth.signOut()
-            }
+            authSettings.clearAuthSettings()
+            _customSessionStatus.value = CustomSessionStatus.NotAuthenticated
+            operationAlert.value = "Logged out."
         }
+    }
+
+    fun getCurrentUserId(): String? {
+        return (customSessionStatus.value as? CustomSessionStatus.Authenticated)?.user?.id
+    }
+
+    fun getCurrentUser(): User? {
+        return (customSessionStatus.value as? CustomSessionStatus.Authenticated)?.user
     }
 }

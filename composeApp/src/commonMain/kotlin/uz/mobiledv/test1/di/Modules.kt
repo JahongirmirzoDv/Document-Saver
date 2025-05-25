@@ -19,6 +19,7 @@ val sharedModule = module {
             ignoreUnknownKeys = true
             isLenient = true
             coerceInputValues = true
+            encodeDefaults = true // Add this line
         }
     }
     single { KtorClientInstance.httpClient }

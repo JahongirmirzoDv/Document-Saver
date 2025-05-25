@@ -1,4 +1,4 @@
-// Located in: jahongirmirzodv/test.1.2/Test.1.2-9b9d28bf03dbb316995690f3258340b4922214c6/composeApp/src/commonMain/kotlin/uz/mobiledv/test1/screens/FoldersScreen.kt
+// Located in: jahongirmirzodv/test.1.2/Test.1.2-e8bc22d6ec882d29fdc4fa507b210d7398d64cde/composeApp/src/commonMain/kotlin/uz/mobiledv/test1/screens/FoldersScreen.kt
 package uz.mobiledv.test1.screens
 
 import androidx.compose.foundation.clickable
@@ -26,21 +26,22 @@ import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import uz.mobiledv.test1.AppViewModel
 import uz.mobiledv.test1.model.Folder
-import uz.mobiledv.test1.util.PlatformType
-import uz.mobiledv.test1.util.getCurrentPlatform
-import uz.mobiledv.test1.util.isValidEmail // <-- Import the more robust validation function
+// import uz.mobiledv.test1.util.PlatformType // Not directly used here, AppViewModel handles platform distinction
+// import uz.mobiledv.test1.util.getCurrentPlatform // Not directly used here
+import uz.mobiledv.test1.util.isValidEmail
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FoldersScreen(
-    appViewModel: AppViewModel = koinViewModel(), // appViewModel for user creation
+    appViewModel: AppViewModel = koinViewModel(),
     viewModel: FoldersViewModel = koinViewModel(),
     onFolderClick: (Folder) -> Unit,
     onLogout: () -> Unit,
-    navController: NavController
+    navController: NavController // Keep if other navigation is needed from here
 ) {
-    val currentPlatform = remember { getCurrentPlatform() } //
-    val isManager = currentPlatform == PlatformType.DESKTOP //
+    val isManager = appViewModel.isManager // Get from AppViewModel
+    println("is admin: ${isManager}")
+
 
     var showAddFolderDialog by remember { mutableStateOf(false) }
     var showEditFolderDialog by remember { mutableStateOf<Folder?>(null) }
@@ -48,11 +49,11 @@ fun FoldersScreen(
     var showCreateUserDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    // val scope = rememberCoroutineScope() // Not used directly, AppViewModel handles alerts
 
     val foldersUiState by viewModel.foldersUiState.collectAsStateWithLifecycle()
     val folderOperationStatus by viewModel.operationStatus.collectAsStateWithLifecycle()
-    val userCreationAlert by appViewModel.loginAlert.collectAsStateWithLifecycle()
+    val userCreationAlert by appViewModel.operationAlert.collectAsStateWithLifecycle() // Listen to AppViewModel's alert
 
     LaunchedEffect(folderOperationStatus) {
         folderOperationStatus?.let { message ->
@@ -61,15 +62,17 @@ fun FoldersScreen(
         }
     }
 
+    // This handles alerts from AppViewModel (e.g., for user creation)
     LaunchedEffect(userCreationAlert) {
         userCreationAlert?.let { message ->
             snackbarHostState.showSnackbar(message)
-            appViewModel.loginAlert.value = null
-            if (message.startsWith("User account created for") || message.startsWith("Error creating user account")) {
-                // Optionally keep the dialog open on specific errors if needed, or close it.
-                // For now, let's assume we close it if Supabase gives a definitive success/error related to creation.
-                if (!message.contains("email_address_invalid", ignoreCase = true) && !message.contains("Password should be at least 6 characters", ignoreCase = true)) {
-                    showCreateUserDialog = false
+            appViewModel.operationAlert.value = null // Clear AppViewModel's alert
+            if (message.startsWith("User") && (message.contains("created successfully") || message.contains("Error creating user"))) {
+                if (!message.contains("already exists", ignoreCase = true) &&
+                    !message.contains("Invalid", ignoreCase = true) && // Keep dialog for client-side errors
+                    !message.contains("Password", ignoreCase = true) &&
+                    !message.contains("cannot be empty", ignoreCase = true) ) {
+                    showCreateUserDialog = false // Close dialog on successful creation or definitive server error
                 }
             }
         }
@@ -78,21 +81,20 @@ fun FoldersScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("My Folders") },
+                title = { Text(if (isManager) "Admin Folders" else "My Folders") },
                 actions = {
-                    if (isManager) { //
+                    if (isManager) {
                         IconButton(onClick = { showAddFolderDialog = true }) {
                             Icon(Icons.Filled.Add, "Add Folder")
                         }
                         IconButton(onClick = {
                             showCreateUserDialog = true
                         }) {
-                            Icon(Icons.Filled.ManageAccounts, "Manage users / Create User")
+                            Icon(Icons.Filled.ManageAccounts, "Create User")
                         }
                     }
                     IconButton(onClick = {
-                        appViewModel.logout() //
-                        onLogout()
+                        onLogout() // This will trigger AppViewModel.logout()
                     }) {
                         Icon(Icons.AutoMirrored.Filled.Logout, "Logout")
                     }
@@ -131,7 +133,7 @@ fun FoldersScreen(
                                 FolderListItem(
                                     folder = folder,
                                     onClick = { onFolderClick(folder) },
-                                    isManager = isManager,
+                                    isManager = isManager, // Pass isManager status
                                     onEdit = { if (isManager) showEditFolderDialog = folder },
                                     onDelete = { if (isManager) showDeleteFolderDialog = folder }
                                 )
@@ -148,7 +150,7 @@ fun FoldersScreen(
                     ) {
                         Text("Error: ${state.message}", maxLines = 4)
                         Spacer(Modifier.height(8.dp))
-                        Button(onClick = { viewModel.loadFolders() }) { //
+                        Button(onClick = { viewModel.loadFolders() }) {
                             Text("Retry")
                         }
                     }
@@ -172,7 +174,7 @@ fun FoldersScreen(
             FolderDialog(
                 onDismiss = { showAddFolderDialog = false },
                 onConfirm = { name, description ->
-                    viewModel.createFolder(name, description) //
+                    viewModel.createFolder(name, description)
                     showAddFolderDialog = false
                 }
             )
@@ -183,7 +185,7 @@ fun FoldersScreen(
                 folder = folder,
                 onDismiss = { showEditFolderDialog = null },
                 onConfirm = { name, description ->
-                    viewModel.updateFolder(folder.id, name, description) //
+                    viewModel.updateFolder(folder.id, name, description)
                     showEditFolderDialog = null
                 }
             )
@@ -197,7 +199,7 @@ fun FoldersScreen(
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            viewModel.deleteFolder(folder.id) //
+                            viewModel.deleteFolder(folder.id)
                             showDeleteFolderDialog = null
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
@@ -212,8 +214,10 @@ fun FoldersScreen(
         if (showCreateUserDialog) {
             CreateUserDialog(
                 onDismiss = { showCreateUserDialog = false },
-                onConfirm = { email, password ->
-                    appViewModel.adminCreateUser(email, password) //
+                onConfirm = { username, email, password ->
+                    // Admin creating a regular (non-admin) user by default
+                    appViewModel.adminCreateUser(username, email, password, isAdmin = false)
+                    // Dialog closure is handled by LaunchedEffect observing userCreationAlert
                 }
             )
         }
@@ -221,7 +225,7 @@ fun FoldersScreen(
 }
 
 @Composable
-private fun FolderListItem(
+private fun FolderListItem( // No changes needed here if it only depends on isManager for UI elements
     folder: Folder,
     onClick: () -> Unit,
     isManager: Boolean,
@@ -244,19 +248,19 @@ private fun FolderListItem(
         ) {
             Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                 Text(
-                    text = folder.name, //
+                    text = folder.name,
                     style = MaterialTheme.typography.titleMedium
                 )
-                if (folder.description.isNotEmpty()) { //
+                if (folder.description.isNotEmpty()) {
                     Text(
-                        text = folder.description, //
+                        text = folder.description,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                folder.createdAt?.let { //
+                folder.createdAt?.let {
                     Text(
-                        text = "Created: $it",
+                        text = "Created: $it", // You might want to format this date/time
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
@@ -282,13 +286,13 @@ private fun FolderListItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FolderDialog(
+private fun FolderDialog( // No changes needed
     folder: Folder? = null,
     onDismiss: () -> Unit,
     onConfirm: (name: String, description: String) -> Unit
 ) {
-    var name by remember(folder) { mutableStateOf(folder?.name ?: "") } //
-    var description by remember(folder) { mutableStateOf(folder?.description ?: "") } //
+    var name by remember(folder) { mutableStateOf(folder?.name ?: "") }
+    var description by remember(folder) { mutableStateOf(folder?.description ?: "") }
     var nameError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
@@ -348,11 +352,13 @@ private fun FolderDialog(
 @Composable
 private fun CreateUserDialog(
     onDismiss: () -> Unit,
-    onConfirm: (email: String, pass: String) -> Unit
+    onConfirm: (username: String, email: String, pass: String) -> Unit
 ) {
+    var username by remember { mutableStateOf("") } // Added username
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var usernameError by remember { mutableStateOf<String?>(null) } // Added
     var emailError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
 
@@ -361,11 +367,26 @@ private fun CreateUserDialog(
         title = { Text("Create New User") },
         text = {
             Column {
+                OutlinedTextField( // Username field
+                    value = username,
+                    onValueChange = {
+                        username = it
+                        usernameError = if (it.isNotBlank()) null else "Username cannot be empty."
+                    },
+                    label = { Text("Username*") },
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = usernameError != null,
+                    singleLine = true
+                )
+                usernameError?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+
                 OutlinedTextField(
                     value = email,
                     onValueChange = {
                         email = it
-                        // Use the imported isValidEmail function for validation
                         emailError = if (isValidEmail(it)) null else "Invalid email format."
                     },
                     label = { Text("User Email*") },
@@ -387,9 +408,9 @@ private fun CreateUserDialog(
                     modifier = Modifier.fillMaxWidth(),
                     isError = passwordError != null,
                     singleLine = true,
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(), //
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
-                        val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff //
+                        val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(imageVector = image, if (passwordVisible) "Hide password" else "Show password")
                         }
@@ -403,15 +424,16 @@ private fun CreateUserDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    // Update validation check to use isValidEmail
+                    val isUsernameValid = username.isNotBlank()
                     val isEmailCurrentlyValid = isValidEmail(email)
                     val isPasswordCurrentlyValid = password.length >= 6
 
+                    usernameError = if (isUsernameValid) null else "Username cannot be empty."
                     emailError = if (isEmailCurrentlyValid) null else "Invalid email format."
                     passwordError = if (isPasswordCurrentlyValid) null else "Password must be at least 6 characters."
 
-                    if (isEmailCurrentlyValid && isPasswordCurrentlyValid) {
-                        onConfirm(email.trim(), password)
+                    if (isUsernameValid && isEmailCurrentlyValid && isPasswordCurrentlyValid) {
+                        onConfirm(username.trim(), email.trim(), password)
                     }
                 }
             ) { Text("Create User") }

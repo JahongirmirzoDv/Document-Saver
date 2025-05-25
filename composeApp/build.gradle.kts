@@ -77,6 +77,8 @@ kotlin {
             implementation(libs.multiplatformSettings.noArg) // Common dependency
             implementation(libs.multiplatformSettings.coroutines) // Optional for coroutines support
 
+            implementation("com.benasher44:uuid:0.8.4")
+
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
