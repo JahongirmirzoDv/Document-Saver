@@ -1,3 +1,4 @@
+// Located in: jahongirmirzodv/test.1.2/Test.1.2-9b9d28bf03dbb316995690f3258340b4922214c6/composeApp/src/commonMain/kotlin/uz/mobiledv/test1/screens/FoldersScreen.kt
 package uz.mobiledv.test1.screens
 
 import androidx.compose.foundation.clickable
@@ -6,52 +7,71 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import uz.mobiledv.test1.AppViewModel
 import uz.mobiledv.test1.model.Folder
 import uz.mobiledv.test1.util.PlatformType
 import uz.mobiledv.test1.util.getCurrentPlatform
+import uz.mobiledv.test1.util.isValidEmail // <-- Import the more robust validation function
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FoldersScreen(
-    appViewModel: AppViewModel = koinViewModel(),
+    appViewModel: AppViewModel = koinViewModel(), // appViewModel for user creation
     viewModel: FoldersViewModel = koinViewModel(),
     onFolderClick: (Folder) -> Unit,
     onLogout: () -> Unit,
-    navController: NavController // Added NavController
+    navController: NavController
 ) {
+    val currentPlatform = remember { getCurrentPlatform() } //
+    val isManager = currentPlatform == PlatformType.DESKTOP //
 
-    val currentPlatform = remember { getCurrentPlatform() } // Remember to avoid recomposition issues
-    val isManager = currentPlatform == PlatformType.DESKTOP
+    var showAddFolderDialog by remember { mutableStateOf(false) }
+    var showEditFolderDialog by remember { mutableStateOf<Folder?>(null) }
+    var showDeleteFolderDialog by remember { mutableStateOf<Folder?>(null) }
+    var showCreateUserDialog by remember { mutableStateOf(false) }
 
-    var showAddDialog by remember { mutableStateOf(false) }
-    var showEditDialog by remember { mutableStateOf<Folder?>(null) }
-    var showDeleteDialog by remember { mutableStateOf<Folder?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
-    // val scope = rememberCoroutineScope() // Not used here directly, but good to have if needed
+    val scope = rememberCoroutineScope()
 
     val foldersUiState by viewModel.foldersUiState.collectAsStateWithLifecycle()
-    val operationStatus by viewModel.operationStatus.collectAsStateWithLifecycle()
+    val folderOperationStatus by viewModel.operationStatus.collectAsStateWithLifecycle()
+    val userCreationAlert by appViewModel.loginAlert.collectAsStateWithLifecycle()
 
-    LaunchedEffect(operationStatus) {
-        operationStatus?.let { message ->
+    LaunchedEffect(folderOperationStatus) {
+        folderOperationStatus?.let { message ->
             snackbarHostState.showSnackbar(message)
             viewModel.clearOperationStatus()
+        }
+    }
+
+    LaunchedEffect(userCreationAlert) {
+        userCreationAlert?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            appViewModel.loginAlert.value = null
+            if (message.startsWith("User account created for") || message.startsWith("Error creating user account")) {
+                // Optionally keep the dialog open on specific errors if needed, or close it.
+                // For now, let's assume we close it if Supabase gives a definitive success/error related to creation.
+                if (!message.contains("email_address_invalid", ignoreCase = true) && !message.contains("Password should be at least 6 characters", ignoreCase = true)) {
+                    showCreateUserDialog = false
+                }
+            }
         }
     }
 
@@ -60,18 +80,18 @@ fun FoldersScreen(
             TopAppBar(
                 title = { Text("My Folders") },
                 actions = {
-                    if (isManager) { // Only show Add for Desktop/Manager
-                        IconButton(onClick = { showAddDialog = true }) {
+                    if (isManager) { //
+                        IconButton(onClick = { showAddFolderDialog = true }) {
                             Icon(Icons.Filled.Add, "Add Folder")
                         }
                         IconButton(onClick = {
-
+                            showCreateUserDialog = true
                         }) {
-                            Icon(Icons.Filled.ManageAccounts, "Manage users")
+                            Icon(Icons.Filled.ManageAccounts, "Manage users / Create User")
                         }
                     }
                     IconButton(onClick = {
-                        appViewModel.logout()
+                        appViewModel.logout() //
                         onLogout()
                     }) {
                         Icon(Icons.AutoMirrored.Filled.Logout, "Logout")
@@ -101,7 +121,7 @@ fun FoldersScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Text("No folders yet. Tap '+' to create one!")
+                            Text(if (isManager) "No folders yet. Tap '+' to create one!" else "No folders available.")
                         }
                     } else {
                         LazyColumn(
@@ -110,10 +130,10 @@ fun FoldersScreen(
                             items(state.folders, key = { it.id }) { folder ->
                                 FolderListItem(
                                     folder = folder,
-                                    onClick = { onFolderClick(folder) }, // Use callback
-                                    isManager = isManager, // Pass manager status
-                                    onEdit = { if (isManager) showEditDialog = folder },
-                                    onDelete = { if (isManager) showDeleteDialog = folder }
+                                    onClick = { onFolderClick(folder) },
+                                    isManager = isManager,
+                                    onEdit = { if (isManager) showEditFolderDialog = folder },
+                                    onDelete = { if (isManager) showDeleteFolderDialog = folder }
                                 )
                             }
                         }
@@ -128,7 +148,7 @@ fun FoldersScreen(
                     ) {
                         Text("Error: ${state.message}", maxLines = 4)
                         Spacer(Modifier.height(8.dp))
-                        Button(onClick = { viewModel.loadFolders() }) {
+                        Button(onClick = { viewModel.loadFolders() }) { //
                             Text("Retry")
                         }
                     }
@@ -148,43 +168,52 @@ fun FoldersScreen(
     }
 
     if (isManager) {
-        if (showAddDialog) {
+        if (showAddFolderDialog) {
             FolderDialog(
-                onDismiss = { showAddDialog = false },
+                onDismiss = { showAddFolderDialog = false },
                 onConfirm = { name, description ->
-                    viewModel.createFolder(name, description)
-                    showAddDialog = false
+                    viewModel.createFolder(name, description) //
+                    showAddFolderDialog = false
                 }
             )
         }
 
-        showEditDialog?.let { folder ->
+        showEditFolderDialog?.let { folder ->
             FolderDialog(
                 folder = folder,
-                onDismiss = { showEditDialog = null },
+                onDismiss = { showEditFolderDialog = null },
                 onConfirm = { name, description ->
-                    viewModel.updateFolder(folder.id, name, description)
-                    showEditDialog = null
+                    viewModel.updateFolder(folder.id, name, description) //
+                    showEditFolderDialog = null
                 }
             )
         }
 
-        showDeleteDialog?.let { folder ->
+        showDeleteFolderDialog?.let { folder ->
             AlertDialog(
-                onDismissRequest = { showDeleteDialog = null },
+                onDismissRequest = { showDeleteFolderDialog = null },
                 title = { Text("Delete Folder") },
                 text = { Text("Are you sure you want to delete folder \"${folder.name}\"? This action cannot be undone.") },
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            viewModel.deleteFolder(folder.id)
-                            showDeleteDialog = null
+                            viewModel.deleteFolder(folder.id) //
+                            showDeleteFolderDialog = null
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) { Text("Delete") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteDialog = null }) { Text("Cancel") }
+                    TextButton(onClick = { showDeleteFolderDialog = null }) { Text("Cancel") }
+                }
+            )
+        }
+
+        if (showCreateUserDialog) {
+            CreateUserDialog(
+                onDismiss = { showCreateUserDialog = false },
+                onConfirm = { email, password ->
+                    appViewModel.adminCreateUser(email, password) //
                 }
             )
         }
@@ -195,7 +224,7 @@ fun FoldersScreen(
 private fun FolderListItem(
     folder: Folder,
     onClick: () -> Unit,
-    isManager: Boolean, // Added
+    isManager: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -215,19 +244,18 @@ private fun FolderListItem(
         ) {
             Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                 Text(
-                    text = folder.name,
+                    text = folder.name, //
                     style = MaterialTheme.typography.titleMedium
                 )
-                if (folder.description.isNotEmpty()) {
+                if (folder.description.isNotEmpty()) { //
                     Text(
-                        text = folder.description,
+                        text = folder.description, //
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                folder.createdAt?.let {
+                folder.createdAt?.let { //
                     Text(
-                        // Basic date formatting, consider a more robust date parsing/formatting library for production
                         text = "Created: $it",
                         style = MaterialTheme.typography.labelSmall
                     )
@@ -259,8 +287,8 @@ private fun FolderDialog(
     onDismiss: () -> Unit,
     onConfirm: (name: String, description: String) -> Unit
 ) {
-    var name by remember(folder) { mutableStateOf(folder?.name ?: "") }
-    var description by remember(folder) { mutableStateOf(folder?.description ?: "") }
+    var name by remember(folder) { mutableStateOf(folder?.name ?: "") } //
+    var description by remember(folder) { mutableStateOf(folder?.description ?: "") } //
     var nameError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
@@ -316,16 +344,80 @@ private fun FolderDialog(
     )
 }
 
-// Preview needs NavController, which is tricky for simple previews.
-// Consider a separate preview Composable that doesn't require full NavController.
-// @Preview
-// @Composable
-// fun PreviewFoldersScreen() {
-//    MaterialTheme {
-//        FoldersScreen(
-//            onFolderClick = {},
-//            onLogout = {},
-//            navController = rememberNavController() // This won't be fully functional in preview
-//        )
-//    }
-// }
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CreateUserDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (email: String, pass: String) -> Unit
+) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create New User") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = {
+                        email = it
+                        // Use the imported isValidEmail function for validation
+                        emailError = if (isValidEmail(it)) null else "Invalid email format."
+                    },
+                    label = { Text("User Email*") },
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = emailError != null,
+                    singleLine = true
+                )
+                emailError?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = {
+                        password = it
+                        passwordError = if (it.length >= 6) null else "Password must be at least 6 characters."
+                    },
+                    label = { Text("Password*") },
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = passwordError != null,
+                    singleLine = true,
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(), //
+                    trailingIcon = {
+                        val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff //
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(imageVector = image, if (passwordVisible) "Hide password" else "Show password")
+                        }
+                    }
+                )
+                passwordError?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    // Update validation check to use isValidEmail
+                    val isEmailCurrentlyValid = isValidEmail(email)
+                    val isPasswordCurrentlyValid = password.length >= 6
+
+                    emailError = if (isEmailCurrentlyValid) null else "Invalid email format."
+                    passwordError = if (isPasswordCurrentlyValid) null else "Password must be at least 6 characters."
+
+                    if (isEmailCurrentlyValid && isPasswordCurrentlyValid) {
+                        onConfirm(email.trim(), password)
+                    }
+                }
+            ) { Text("Create User") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}

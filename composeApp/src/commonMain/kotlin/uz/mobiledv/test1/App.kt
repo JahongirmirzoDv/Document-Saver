@@ -25,6 +25,8 @@ import uz.mobiledv.test1.screens.FolderDetailScreen
 import uz.mobiledv.test1.screens.FoldersScreen
 import uz.mobiledv.test1.screens.LoginScreen
 import uz.mobiledv.test1.screens.SimpleViewModel
+import uz.mobiledv.test1.util.PlatformType
+import uz.mobiledv.test1.util.getCurrentPlatform
 
 @Composable
 @Preview
@@ -33,6 +35,9 @@ fun App() {
     MaterialTheme {
         val navController = rememberNavController()
         val sessionStatus by viewModel.sessionStatus.collectAsStateWithLifecycle()
+
+        val currentPlatform = remember { getCurrentPlatform() } //
+        val isManager = currentPlatform == PlatformType.DESKTOP
 
         val startDestination by remember(sessionStatus) {
             derivedStateOf { // Use derivedStateOf for cleaner state observation
@@ -52,7 +57,8 @@ fun App() {
                 }
             } else if (sessionStatus is SessionStatus.Authenticated) {
                 if (navController.currentDestination?.route != "folders" &&
-                    !navController.currentDestination?.route.orEmpty().startsWith("folderDetail")) {
+                    !navController.currentDestination?.route.orEmpty().startsWith("folderDetail")
+                ) {
                     navController.navigate("folders") {
                         popUpTo("login") { inclusive = true } // Clear login from backstack
                         launchSingleTop = true
@@ -78,7 +84,10 @@ fun App() {
                 )
             }
         } else {
-            NavHost(navController, startDestination = startDestination) {
+            NavHost(
+                navController,
+                startDestination = if (isManager) "folders" else startDestination
+            ) {
                 composable("loading") { // Keep a loading route for explicit navigation if needed
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()

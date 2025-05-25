@@ -10,6 +10,7 @@ import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.FilterOperation
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.storage.storage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -96,7 +97,7 @@ class FoldersViewModel(
     }
 
     fun loadFolders() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             _foldersUiState.value = FoldersUiState.Loading
             val currentUserId = getCurrentUserId() ?: run {
                 _foldersUiState.value = FoldersUiState.Error("User not authenticated.")
@@ -105,9 +106,9 @@ class FoldersViewModel(
             try {
                 val folders = supabaseClient.postgrest[FOLDER]
                     .select(columns = Columns.ALL) {
-                        filter {
-                            eq("user_id",currentUserId)
-                        }
+//                        filter {
+//                            eq("user_id",currentUserId)
+//                        }
                         order("name", Order.ASCENDING)
                     }
                     .decodeList<Folder>()
@@ -121,7 +122,7 @@ class FoldersViewModel(
     }
 
     fun createFolder(name: String, description: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val currentUserId = getCurrentUserId() ?: return@launch
 
             // Specific date and time
@@ -157,7 +158,7 @@ class FoldersViewModel(
     }
 
     fun updateFolder(folderId: String, name: String, description: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             getCurrentUserId() ?: return@launch // Ensure user is authenticated
             try {
                 supabaseClient.postgrest[FOLDER]
@@ -181,7 +182,7 @@ class FoldersViewModel(
     }
 
     fun deleteFolder(folderId: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             getCurrentUserId() ?: return@launch
             try {
                 // Consider deleting documents within the folder from storage and DB first
@@ -202,7 +203,7 @@ class FoldersViewModel(
     }
 
     fun loadDocumentsForFolder(folderId: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             _folderDocumentsUiState.value = FolderDocumentsUiState.Loading
             val currentUserId = getCurrentUserId() ?: run {
                 _folderDocumentsUiState.value =
@@ -229,14 +230,14 @@ class FoldersViewModel(
     }
 
     fun uploadFileToFolder(folderId: String, fileData: FileData) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             _fileUploadUiState.value = FileUploadUiState.Loading
             val currentUserId = getCurrentUserId() ?: run {
                 _fileUploadUiState.value = FileUploadUiState.Error("User not authenticated.")
                 return@launch
             }
 
-            val storagePath = "${currentUserId}/${folderId}/${fileData.name}"
+            val storagePath = "${folderId}/${fileData.name}" //${currentUserId}/
 
             try {
                 supabaseClient.storage[BUCKET].upload(
@@ -271,7 +272,7 @@ class FoldersViewModel(
     }
 
     fun downloadFile(document: Document) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             if (document.storageFilePath == null) {
                 _fileDownloadUiState.value = FileDownloadUiState.Error("File path is missing.")
                 return@launch
@@ -301,7 +302,7 @@ class FoldersViewModel(
     }
 
     fun deleteDocument(document: Document) { // NEW for Managers
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val currentUserId = getCurrentUserId() ?: run {
                 _operationStatus.value = "User not authenticated to delete document."
                 return@launch
