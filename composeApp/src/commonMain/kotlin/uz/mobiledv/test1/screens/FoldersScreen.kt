@@ -339,6 +339,7 @@ private fun FolderDialog(
                     value = description,
                     onValueChange = {
                         description = it
+                        // No specific validation for description, but can be added if needed
                     },
                     label = { Text("Description (Optional)") },
                     modifier = Modifier.fillMaxWidth(),

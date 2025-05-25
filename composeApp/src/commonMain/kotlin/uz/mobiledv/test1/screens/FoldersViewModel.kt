@@ -27,7 +27,6 @@ import uz.mobiledv.test1.model.Folder
 import uz.mobiledv.test1.util.FileData
 import uz.mobiledv.test1.util.FileSaver
 import com.benasher44.uuid.uuid4
-import io.github.jan.supabase.auth.auth
 
 
 // ... (Keep existing sealed classes: FoldersUiState, FolderDocumentsUiState, FileUploadUiState, FileDownloadUiState) ...
@@ -257,75 +256,43 @@ class FoldersViewModel(
     fun uploadFileToFolder(folderId: String, fileData: FileData) {
         viewModelScope.launch(Dispatchers.IO) {
             _fileUploadUiState.value = FileUploadUiState.Loading
-            val currentUserIdFromAuthSettings = getCurrentUserId() // ID from your app's settings
-
-            if (currentUserIdFromAuthSettings == null) {
-                _fileUploadUiState.value = FileUploadUiState.Error("User not authenticated (AuthSettings ID is null).")
-                println("DEBUG: RLS Abort: currentUserIdFromAuthSettings is null")
+            val currentUserId = getCurrentUserId() ?: run {
+                _fileUploadUiState.value =
+                    FileUploadUiState.Error("User not authenticated to upload.")
+                return@launch
+            }
+            if (!isCurrentUserAdmin()) {
+                _fileUploadUiState.value =
+                    FileUploadUiState.Error("Only designated managers can upload files.")
                 return@launch
             }
 
-            // Get the user ID directly from the Supabase client's current session
-            // This represents auth.uid() for the current request
-            val sessionAuthUid = supabaseClient.auth.currentUserOrNull()?.id
-
-            println("DEBUG: RLS PRE-CHECK - currentUserIdFromAuthSettings: $currentUserIdFromAuthSettings")
-            println("DEBUG: RLS PRE-CHECK - sessionAuthUid (from Supabase client auth): $sessionAuthUid")
-
-
-            if (!isCurrentUserAdmin()) { // This check uses currentUserIdFromAuthSettings via getCurrentUser()
-                _fileUploadUiState.value = FileUploadUiState.Error("Only designated managers can upload files.")
-                println("DEBUG: RLS Abort: Not an admin.")
-                return@launch
-            }
-
-            val storagePath = "${currentUserIdFromAuthSettings}/folder_${folderId}/${uuid4()}_${fileData.name}"
-            println("DEBUG: Constructed Storage Path: $storagePath")
+            val storagePath = "${currentUserId}/folder_${folderId}/${uuid4()}_${fileData.name}"
 
             try {
-                // Stage 1: File Upload to Storage (This seemed to work in the previous error if it got to Postgrest)
                 supabaseClient.storage[BUCKET].upload(
                     path = storagePath,
                     data = fileData.bytes,
                     options = { upsert = false }
                 )
-                println("DEBUG: File uploaded to storage successfully at path: $storagePath")
 
-                // Stage 2: Insert metadata into 'documents' table
                 val documentMetadata = Document(
                     id = uuid4().toString(),
                     folderId = folderId,
                     name = fileData.name,
                     storageFilePath = storagePath,
-                    userId = currentUserIdFromAuthSettings, // Crucial: This ID is being inserted
+                    userId = currentUserId,
                     mimeType = fileData.mimeType,
                     createdAt = Clock.System.now().toString()
                 )
 
-                println("DEBUG: RLS PRE-INSERT - Document metadata to be inserted: $documentMetadata")
-                println("DEBUG: RLS PRE-INSERT - userId being inserted into 'documents' table: ${documentMetadata.userId}")
-
-                if (currentUserIdFromAuthSettings != sessionAuthUid) {
-                    println("WARNING: RLS MISMATCH LIKELY! ID from AuthSettings ($currentUserIdFromAuthSettings) is DIFFERENT from Supabase session ID ($sessionAuthUid). This will cause RLS violation if policy is auth.uid() = user_id.")
-                } else {
-                    println("INFO: RLS MATCH CHECK: ID from AuthSettings and Supabase session ID appear to match: $sessionAuthUid. RLS policy auth.uid() = user_id should pass if this value is correct.")
-                }
-
                 supabaseClient.postgrest[DOCUMENT].insert(documentMetadata)
-                println("DEBUG: Document metadata inserted into 'documents' table successfully.")
 
                 _fileUploadUiState.value =
                     FileUploadUiState.Success("File '${fileData.name}' uploaded.")
                 loadDocumentsForFolder(folderId)
-
-            } catch (e: io.github.jan.supabase.postgrest.exception.PostgrestRestException) {
-                _fileUploadUiState.value = FileUploadUiState.Error("Postgrest Error: ${e.message}")
-                println("DEBUG: PostgrestRestException during document insert: ${e.message}")
-                println("DEBUG: PostgrestRestException details: Code: ${e.code}, Hint: ${e.hint}, Details: ${e.details}")
-                e.printStackTrace()
             } catch (e: Exception) {
                 _fileUploadUiState.value = FileUploadUiState.Error("Upload failed: ${e.message}")
-                println("DEBUG: Generic Upload Exception: ${e.localizedMessage}")
                 e.printStackTrace()
             }
         }
@@ -335,11 +302,6 @@ class FoldersViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             if (document.storageFilePath == null) {
                 _fileDownloadUiState.value = FileDownloadUiState.Error("File path is missing.")
-                return@launch
-            }
-            val currentUserId = getCurrentUserId() ?: run {
-                _fileDownloadUiState.value =
-                    FileDownloadUiState.Error("User not authenticated for download.")
                 return@launch
             }
 
