@@ -79,6 +79,11 @@ kotlin {
 
             implementation("com.benasher44:uuid:0.8.4")
 
+            implementation("com.squareup.okio:okio:3.9.0")
+
+//            implementation(libs.moko.mvvm.core) // Or moko-mvvm-viewmodel
+//            implementation(libs.moko.mvvm.compose) // For rememberViewModel
+
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -138,6 +143,13 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "uz.mobiledv.test1"
             packageVersion = "1.0.0"
+
+            windows {
+                iconFile.set(project.file("src/desktopMain/composeResources/icons/icon.ico"))
+                // menuGroup = "My Awesome App"
+                // shortcut = true
+                // ... other windows specific settings
+            }
         }
     }
 }

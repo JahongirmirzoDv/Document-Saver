@@ -1,46 +1,17 @@
-// Located in: jahongirmirzodv/test.1.2/Test.1.2-e8bc22d6ec882d29fdc4fa507b210d7398d64cde/composeApp/src/commonMain/kotlin/uz/mobiledv/test1/screens/LoginScreen.kt
 package uz.mobiledv.test1.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-// import io.github.jan.supabase.auth.status.SessionStatus // Not needed anymore
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -49,14 +20,13 @@ import uz.mobiledv.test1.CustomSessionStatus
 import uz.mobiledv.test1.data.AuthSettings
 import uz.mobiledv.test1.util.isValidEmail
 
-
+@OptIn(ExperimentalMaterial3Api::class) // Ensure this is present for Scaffold, etc.
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit, // Callback for successful login
+    onLoginSuccess: () -> Unit,
     appViewModel: AppViewModel = koinViewModel(),
     authSettings: AuthSettings = koinInject()
 ) {
-    // Use email or username for login
     var identifier by remember { mutableStateOf(authSettings.getLastLoggedInEmail() ?: "") }
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -73,7 +43,7 @@ fun LoginScreen(
     LaunchedEffect(operationAlert) {
         operationAlert?.let {
             snackbarHostState.showSnackbar(it)
-            appViewModel.operationAlert.value = null // Clear the alert
+            appViewModel.operationAlert.value = null
         }
     }
 
@@ -81,27 +51,33 @@ fun LoginScreen(
         when (customSessionStatus) {
             is CustomSessionStatus.Authenticated -> {
                 isLoading = false
-                onLoginSuccess() // Trigger navigation
+                onLoginSuccess()
             }
             is CustomSessionStatus.NotAuthenticated -> {
-                isLoading = false // Stop loading if auth fails or on initial load
+                isLoading = false
             }
             is CustomSessionStatus.Initializing -> {
-                isLoading = true // Show loading indicator
+                isLoading = true
             }
         }
     }
 
-
-    Scaffold(snackbarHost = { SnackbarHost(hostState = snackbarHostState) }) { paddingValues ->
+    Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        containerColor = MaterialTheme.colorScheme.background // Use theme background
+    ) { paddingValues ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Text(
                 text = "Login / Sign Up",
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineSmall, // Use M3 Typography
+                color = MaterialTheme.colorScheme.onBackground, // Use M3 Color
                 modifier = Modifier.padding(bottom = 32.dp)
             )
 
@@ -112,9 +88,17 @@ fun LoginScreen(
                     clientError = null
                 },
                 label = { Text("Username or Email") },
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
                 isError = clientError != null && clientError?.contains("identifier", ignoreCase = true) == true,
-                singleLine = true
+                singleLine = true,
+//                colors = TextFieldDefaults.colors( // M3 Text field colors
+//                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+//                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+//                    textColor = MaterialTheme.colorScheme.onSurface,
+//                    cursorColor = MaterialTheme.colorScheme.primary,
+//                )
             )
 
             OutlinedTextField(
@@ -124,41 +108,59 @@ fun LoginScreen(
                     clientError = null
                 },
                 label = { Text("Password") },
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
                     val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
                     val description = if (passwordVisible) "Hide password" else "Show password"
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(imageVector = image, description)
+                        Icon(
+                            imageVector = image,
+                            contentDescription = description,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant // M3 Color
+                        )
                     }
                 },
                 isError = clientError != null && clientError?.contains("password", ignoreCase = true) == true,
-                singleLine = true
+                singleLine = true,
+//                colors = TextFieldDefaults.colors( // M3 Text field colors
+//                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+//                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+//                    textColor = MaterialTheme.colorScheme.onSurface,
+//                    cursorColor = MaterialTheme.colorScheme.primary
+//                )
             )
 
             clientError?.let { currentError ->
                 Text(
                     currentError,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error, // M3 Color
+                    style = MaterialTheme.typography.bodySmall, // M3 Typography
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Checkbox(
                     checked = rememberMe,
                     onCheckedChange = {
                         rememberMe = it
-                        // Logic to save/clear email preference moved to login action
-                    }
+                    },
+                    colors = CheckboxDefaults.colors( // M3 Checkbox colors
+                        checkedColor = MaterialTheme.colorScheme.primary,
+                        uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        checkmarkColor = MaterialTheme.colorScheme.onPrimary
+                    )
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Remember me")
+                Text("Remember me", color = MaterialTheme.colorScheme.onBackground) // M3 Color
             }
 
             Button(
@@ -179,23 +181,27 @@ fun LoginScreen(
                     appViewModel.login(identifier, password, rememberMe)
                 },
                 enabled = !isLoading,
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(48.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp)
+                    .height(48.dp),
+                colors = ButtonDefaults.buttonColors( // M3 Button colors
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(24.dp)
+                        color = MaterialTheme.colorScheme.onPrimary, // M3 Color
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp // Thinner stroke for M3 style
                     )
                 } else {
                     Text("Login")
                 }
             }
-            TextButton( // Example: This could navigate to a separate sign-up screen or show a sign-up dialog
+            TextButton(
                 onClick = {
-                    // For simplicity, we'll use the adminCreateUser for "Sign Up" from a non-admin context.
-                    // In a real app, you'd have a separate sign-up flow.
-                    // This example assumes 'identifier' is email for sign-up.
-                    // You'd likely have separate fields for username, email, password in a real sign-up form.
                     if (identifier.isBlank() || password.isBlank()) {
                         clientError = "Email and password are required for sign-up."
                         return@TextButton
@@ -209,17 +215,12 @@ fun LoginScreen(
                         return@TextButton
                     }
                     clientError = null
-                    // Non-admin users creating their own accounts. isAdmin will be false.
-                    // The `adminCreateUser` in AppViewModel could be split or adapted
-                    // if you need distinct sign-up vs admin-creation logic.
-                    // For now, we'll use a simplified approach:
                     scope.launch {
                         snackbarHostState.showSnackbar("Sign-up: Desktop admin needs to create your account, or this feature needs full implementation with a dedicated sign-up screen/flow.")
-                        // If you want users to self-register:
-                        // appViewModel.selfRegisterUser(identifier, password) // You'd need to create this method
                     }
                 },
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 8.dp),
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary) // M3 Color
             ) {
                 Text("Don't have an account? Contact Admin / Sign Up (Basic)")
             }

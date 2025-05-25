@@ -8,21 +8,18 @@ import uz.mobiledv.test1.di.initKoin
 class MyActivity: Application() {
 
     object AppContextHolder {
-        lateinit var appContext: Context // Renamed for clarity
+        lateinit var appContext: Context
 
-        fun isInitialized(): Boolean {
-            return ::appContext.isInitialized
-        }
+        fun isInitialized(): Boolean = ::appContext.isInitialized
     }
 
 
     override fun onCreate() {
         super.onCreate()
+        AppContextHolder.appContext = applicationContext
+
         initKoin {
             androidContext(this@MyActivity)
         }
-
-
-        AppContextHolder.appContext = applicationContext
     }
 }
