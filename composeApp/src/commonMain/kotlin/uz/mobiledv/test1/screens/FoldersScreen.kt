@@ -14,6 +14,9 @@ import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,11 +81,15 @@ fun FoldersScreen(
         userCreationAlert?.let { message ->
             snackbarHostState.showSnackbar(message)
             appViewModel.operationAlert.value = null
-            if (message.startsWith("User") && (message.contains("created successfully") || message.contains("Error creating user"))) {
+            if (message.startsWith("User") && (message.contains("created successfully") || message.contains(
+                    "Error creating user"
+                ))
+            ) {
                 if (!message.contains("already exists", ignoreCase = true) &&
                     !message.contains("Invalid", ignoreCase = true) &&
                     !message.contains("Password", ignoreCase = true) &&
-                    !message.contains("cannot be empty", ignoreCase = true) ) {
+                    !message.contains("cannot be empty", ignoreCase = true)
+                ) {
                     showCreateUserDialog = false
                 }
             }
@@ -114,69 +121,89 @@ fun FoldersScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
-            when (val state = foldersUiState) {
-                is FoldersUiState.Loading -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        CircularProgressIndicator()
-                        Text("Loading folders...")
-                    }
-                }
 
-                is FoldersUiState.Success -> {
-                    if (state.folders.isEmpty()) {
+        val pullToRefreshState = rememberPullToRefreshState()
+        PullToRefreshBox(
+            modifier = Modifier
+                .fillMaxSize(),
+            isRefreshing = foldersUiState is FoldersUiState.Loading, // Reflect ViewModel's loading state
+            onRefresh = {
+                viewModel.loadFolders() // Or a dedicated refreshFolders function
+            },
+            indicator = {
+                Indicator(state = pullToRefreshState,
+                    isRefreshing = foldersUiState is FoldersUiState.Loading,
+                    modifier = Modifier.align(Alignment.BottomCenter))
+            }
+            // You can customize the indicator via the `indicator` parameter if needed
+            // indicator = { PullToRefreshDefaults.Indicator(state = it) } // Default indicator
+        ) {
+            Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+                when (val state = foldersUiState) {
+                    is FoldersUiState.Loading -> {
                         Column(
                             modifier = Modifier.fillMaxSize(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            // Text for all users if no folders exist.
-                            Text(if (isManager) "No folders yet. Tap '+' to create one!" else "No folders available.")
+                            CircularProgressIndicator()
+                            Text("Loading folders...")
                         }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize().padding(16.dp)
-                        ) {
-                            items(state.folders, key = { it.id }) { folder ->
-                                FolderListItem(
-                                    folder = folder,
-                                    onClick = { onFolderClick(folder) },
-                                    isManager = isManager, // Pass for edit/delete buttons
-                                    onEdit = { if (isManager) showEditFolderDialog = folder },
-                                    onDelete = { if (isManager) showDeleteFolderDialog = folder }
-                                )
+                    }
+
+                    is FoldersUiState.Success -> {
+                        if (state.folders.isEmpty()) {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                // Text for all users if no folders exist.
+                                Text(if (isManager) "No folders yet. Tap '+' to create one!" else "No folders available.")
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize().padding(16.dp)
+                            ) {
+                                items(state.folders, key = { it.id }) { folder ->
+                                    FolderListItem(
+                                        folder = folder,
+                                        onClick = { onFolderClick(folder) },
+                                        isManager = isManager, // Pass for edit/delete buttons
+                                        onEdit = { if (isManager) showEditFolderDialog = folder },
+                                        onDelete = {
+                                            if (isManager) showDeleteFolderDialog = folder
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
-                }
 
-                is FoldersUiState.Error -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text("Error: ${state.message}", maxLines = 4)
-                        Spacer(Modifier.height(8.dp))
-                        Button(onClick = { viewModel.loadFolders() }) {
-                            Text("Retry")
+                    is FoldersUiState.Error -> {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("Error: ${state.message}", maxLines = 4)
+                            Spacer(Modifier.height(8.dp))
+                            Button(onClick = { viewModel.loadFolders() }) {
+                                Text("Retry")
+                            }
                         }
                     }
-                }
 
-                is FoldersUiState.Idle -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text("Initializing folder view...")
-                        // Optionally trigger loadFolders if authenticated and idle
-                        // LaunchedEffect above handles this.
+                    is FoldersUiState.Idle -> {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("Initializing folder view...")
+                            // Optionally trigger loadFolders if authenticated and idle
+                            // LaunchedEffect above handles this.
+                        }
                     }
                 }
             }
@@ -283,7 +310,11 @@ private fun FolderListItem(
             if (isManager) { // Edit and Delete buttons only for managers
                 Row {
                     IconButton(onClick = onEdit, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Filled.Edit, "Edit Folder", tint = MaterialTheme.colorScheme.primary)
+                        Icon(
+                            Icons.Filled.Edit,
+                            "Edit Folder",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                     IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
                         Icon(
@@ -397,7 +428,11 @@ private fun CreateUserDialog(
                     singleLine = true
                 )
                 usernameError?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -413,14 +448,19 @@ private fun CreateUserDialog(
                     singleLine = true
                 )
                 emailError?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = password,
                     onValueChange = {
                         password = it
-                        passwordError = if (it.length >= 6) null else "Password must be at least 6 characters."
+                        passwordError =
+                            if (it.length >= 6) null else "Password must be at least 6 characters."
                     },
                     label = { Text("Password*") },
                     modifier = Modifier.fillMaxWidth(),
@@ -428,14 +468,22 @@ private fun CreateUserDialog(
                     singleLine = true,
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
-                        val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                        val image =
+                            if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(imageVector = image, if (passwordVisible) "Hide password" else "Show password")
+                            Icon(
+                                imageVector = image,
+                                if (passwordVisible) "Hide password" else "Show password"
+                            )
                         }
                     }
                 )
                 passwordError?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         },
@@ -448,7 +496,8 @@ private fun CreateUserDialog(
 
                     usernameError = if (isUsernameValid) null else "Username cannot be empty."
                     emailError = if (isEmailCurrentlyValid) null else "Invalid email format."
-                    passwordError = if (isPasswordCurrentlyValid) null else "Password must be at least 6 characters."
+                    passwordError =
+                        if (isPasswordCurrentlyValid) null else "Password must be at least 6 characters."
 
                     if (isUsernameValid && isEmailCurrentlyValid && isPasswordCurrentlyValid) {
                         onConfirm(username.trim(), email.trim(), password)

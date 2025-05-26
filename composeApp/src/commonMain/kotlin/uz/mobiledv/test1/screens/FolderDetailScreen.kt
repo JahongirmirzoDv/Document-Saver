@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack // Updated 
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 // import androidx.compose.material3.BasicAlertDialog // Not used directly
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -133,120 +134,129 @@ fun FolderDetailScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
-            when (val state = documentsUiState) {
-                is FolderDocumentsUiState.Loading -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        CircularProgressIndicator()
-                        Text("Loading documents...")
-                    }
-                }
-
-                is FolderDocumentsUiState.Success -> {
-                    if (state.documents.isEmpty()) {
+        PullToRefreshBox(
+            modifier = Modifier
+                .fillMaxSize(),
+            isRefreshing = documentsUiState is FolderDocumentsUiState.Loading, // Reflect ViewModel's loading state
+            onRefresh = {
+                viewModel.loadDocumentsForFolder(folderId)
+            }
+        ) {
+            Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+                when (val state = documentsUiState) {
+                    is FolderDocumentsUiState.Loading -> {
                         Column(
                             modifier = Modifier.fillMaxSize(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Icon(
-                                Icons.Filled.Description,
-                                contentDescription = "No documents",
-                                modifier = Modifier.size(48.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            // Text changes slightly based on whether user is manager or not
-                            Text(if (isManager) "No documents yet. Tap '+' to upload." else "No documents in this folder.")
+                            CircularProgressIndicator()
+                            Text("Loading documents...")
                         }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize().padding(16.dp)
-                        ) {
-                            items(state.documents, key = { it.id }) { document ->
-                                DocumentItem(
-                                    document = document,
-                                    isManager = isManager, // Pass for delete button visibility
-                                    onClick = {
-                                        // Click on item could mean download for non-managers,
-                                        // or view details/preview for managers.
-                                        // For now, download is via explicit button in DocumentItem.
-                                        // If manager clicks item, could show metadata or preview.
-                                        // If non-manager clicks item, could also trigger download.
-                                        // Let's keep primary download via the icon button for now for clarity.
-                                        if (!isManager) {
-                                            viewModel.downloadFile(document)
-                                        } else {
-                                            scope.launch {
-                                                snackbarHostState.showSnackbar("Manager clicked: ${document.name}. (View/Edit actions can be added)")
-                                            }
-                                        }
-                                    },
-                                    onDeleteClick = { // This is specifically for the delete icon
-                                        if (isManager) {
-                                            // Consider adding a confirmation dialog before deleting
-                                            viewModel.deleteDocument(document)
-                                        }
-                                    },
-                                    onDownloadFile = { // This is for the download icon
-                                        // Any authenticated user can download
-                                        viewModel.downloadFile(document)
-                                    }
+                    }
+
+                    is FolderDocumentsUiState.Success -> {
+                        if (state.documents.isEmpty()) {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    Icons.Filled.Description,
+                                    contentDescription = "No documents",
+                                    modifier = Modifier.size(48.dp)
                                 )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                // Text changes slightly based on whether user is manager or not
+                                Text(if (isManager) "No documents yet. Tap '+' to upload." else "No documents in this folder.")
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize().padding(16.dp)
+                            ) {
+                                items(state.documents, key = { it.id }) { document ->
+                                    DocumentItem(
+                                        document = document,
+                                        isManager = isManager, // Pass for delete button visibility
+                                        onClick = {
+                                            // Click on item could mean download for non-managers,
+                                            // or view details/preview for managers.
+                                            // For now, download is via explicit button in DocumentItem.
+                                            // If manager clicks item, could show metadata or preview.
+                                            // If non-manager clicks item, could also trigger download.
+                                            // Let's keep primary download via the icon button for now for clarity.
+                                            if (!isManager) {
+                                                viewModel.downloadFile(document)
+                                            } else {
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar("Manager clicked: ${document.name}. (View/Edit actions can be added)")
+                                                }
+                                            }
+                                        },
+                                        onDeleteClick = { // This is specifically for the delete icon
+                                            if (isManager) {
+                                                // Consider adding a confirmation dialog before deleting
+                                                viewModel.deleteDocument(document)
+                                            }
+                                        },
+                                        onDownloadFile = { // This is for the download icon
+                                            // Any authenticated user can download
+                                            viewModel.downloadFile(document)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
-                }
 
-                is FolderDocumentsUiState.Error -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text("Error: ${state.message}", maxLines = 3)
-                        Spacer(Modifier.height(8.dp))
-                        Button(onClick = {
-                            if(appViewModel.getCurrentUserId() != null) viewModel.loadDocumentsForFolder(folderId)
-                        }) {
-                            Text("Retry")
+                    is FolderDocumentsUiState.Error -> {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("Error: ${state.message}", maxLines = 3)
+                            Spacer(Modifier.height(8.dp))
+                            Button(onClick = {
+                                if(appViewModel.getCurrentUserId() != null) viewModel.loadDocumentsForFolder(folderId)
+                            }) {
+                                Text("Retry")
+                            }
+                        }
+                    }
+
+                    is FolderDocumentsUiState.Idle -> {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("Initializing document view...")
+                            // LaunchedEffect above handles initial load if authenticated
                         }
                     }
                 }
 
-                is FolderDocumentsUiState.Idle -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                if (fileUploadUiState is FileUploadUiState.Loading) {
+                    Box(
+                        modifier = Modifier.fillMaxSize().align(Alignment.Center), // Ensure it's centered over content
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text("Initializing document view...")
-                        // LaunchedEffect above handles initial load if authenticated
-                    }
-                }
-            }
-
-            if (fileUploadUiState is FileUploadUiState.Loading) {
-                Box(
-                    modifier = Modifier.fillMaxSize().align(Alignment.Center), // Ensure it's centered over content
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        modifier = Modifier.padding(32.dp),
-                        shape = MaterialTheme.shapes.medium,
-                        tonalElevation = 8.dp, // or shadowElevation
-                        shadowElevation = 8.dp
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(16.dp)
+                        Surface(
+                            modifier = Modifier.padding(32.dp),
+                            shape = MaterialTheme.shapes.medium,
+                            tonalElevation = 8.dp, // or shadowElevation
+                            shadowElevation = 8.dp
                         ) {
-                            CircularProgressIndicator()
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("Uploading file...")
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                CircularProgressIndicator()
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("Uploading file...")
+                            }
                         }
                     }
                 }

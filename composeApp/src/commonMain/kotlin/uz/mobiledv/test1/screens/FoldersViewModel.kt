@@ -257,30 +257,50 @@ class FoldersViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             _fileUploadUiState.value = FileUploadUiState.Loading
             val currentUserId = getCurrentUserId() ?: run {
-                _fileUploadUiState.value =
-                    FileUploadUiState.Error("User not authenticated to upload.")
+                _fileUploadUiState.value = FileUploadUiState.Error("User not authenticated to upload.")
                 return@launch
             }
             if (!isCurrentUserAdmin()) {
-                _fileUploadUiState.value =
-                    FileUploadUiState.Error("Only designated managers can upload files.")
+                _fileUploadUiState.value = FileUploadUiState.Error("Only designated managers can upload files.")
                 return@launch
             }
 
-            val storagePath = "${currentUserId}/folder_${folderId}/${uuid4()}_${fileData.name}"
+            val originalFileName = fileData.name
+            // Log the original filename as received by the ViewModel
+            println("FoldersViewModel: Original filename from FileData: \"$originalFileName\"")
+
+            // Generate a completely safe name for storage, using only UUID and a sanitized extension.
+            val fileExtension = originalFileName.substringAfterLast('.', "").trim().lowercase()
+
+            // Sanitize the extension: allow only alphanumeric characters, limit length.
+            // This helps prevent issues if the original filename has a malformed "extension".
+            val safeExtension = if (fileExtension.matches(Regex("^[a-zA-Z0-9]+$")) && fileExtension.length <= 5) {
+                ".$fileExtension"
+            } else {
+                "" // If no valid extension, or it's unusual, don't append anything or use a default like ".bin"
+            }
+
+            val uniqueStorageObjectName = "${uuid4()}$safeExtension"
+
+            // Construct the storage path. currentUserId and folderId should already be UUIDs and thus safe.
+            val storagePath = "${currentUserId}/folder_${folderId}/${uniqueStorageObjectName}"
+
+            // CRITICAL LOG: Print the exact path being sent to Supabase Storage
+            println("FoldersViewModel: Attempting to upload to Supabase Storage with path: \"$storagePath\"")
 
             try {
-                supabaseClient.storage[BUCKET].upload(
-                    path = storagePath,
+                supabaseClient.storage[BUCKET].upload( // BUCKET is "second"
+                    path = storagePath, // This path MUST be clean
                     data = fileData.bytes,
                     options = { upsert = false }
                 )
 
+                // Store the originalFileName in your database, and the storagePath for retrieval
                 val documentMetadata = Document(
                     id = uuid4().toString(),
                     folderId = folderId,
-                    name = fileData.name,
-                    storageFilePath = storagePath,
+                    name = originalFileName, // Store the original, user-facing filename (e.g., "мой файл.pdf")
+                    storageFilePath = storagePath, // Store the clean path (e.g., "uuid/folder_uuid/another_uuid.pdf")
                     userId = currentUserId,
                     mimeType = fileData.mimeType,
                     createdAt = Clock.System.now().toString()
@@ -289,11 +309,13 @@ class FoldersViewModel(
                 supabaseClient.postgrest[DOCUMENT].insert(documentMetadata)
 
                 _fileUploadUiState.value =
-                    FileUploadUiState.Success("File '${fileData.name}' uploaded.")
-                loadDocumentsForFolder(folderId)
+                    FileUploadUiState.Success("File '${originalFileName}' uploaded.")
+                loadDocumentsForFolder(folderId) // Refresh list
             } catch (e: Exception) {
                 _fileUploadUiState.value = FileUploadUiState.Error("Upload failed: ${e.message}")
+                // Print the stack trace to see the full context of the Supabase error
                 e.printStackTrace()
+                println("FoldersViewModel: Supabase upload failed for storagePath: \"$storagePath\" with original filename: \"$originalFileName\"")
             }
         }
     }
