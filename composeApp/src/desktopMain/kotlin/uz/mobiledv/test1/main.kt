@@ -28,7 +28,7 @@ fun main() = application {
 
     Window(
         onCloseRequest = ::exitApplication,
-        title = "Test1",
+        title = "Doc Saver",
     ) {
         App()
     }
