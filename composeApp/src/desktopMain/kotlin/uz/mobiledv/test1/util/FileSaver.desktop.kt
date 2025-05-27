@@ -8,8 +8,8 @@ import javax.swing.JFileChooser
 import javax.swing.SwingUtilities
 
 actual class FileSaver {
-    actual suspend fun saveFile(fileData: FileData): Boolean = withContext(Dispatchers.IO) {
-        var success = false
+    actual suspend fun saveFile(fileData: FileData): String? = withContext(Dispatchers.IO) { // Changed return type
+        var filePath: String? = null
         // Use SwingUtilities to ensure JFileChooser runs on the EDT
         SwingUtilities.invokeAndWait {
             val fileChooser = JFileChooser()
@@ -22,15 +22,15 @@ actual class FileSaver {
                     FileOutputStream(chosenFile).use { fos ->
                         fos.write(fileData.bytes)
                     }
-                    success = true
+                    filePath = chosenFile.absolutePath // Get the absolute path
                 } catch (e: Exception) {
                     e.printStackTrace()
-                    success = false
+                    filePath = null
                 }
             } else {
-                success = false // User cancelled
+                filePath = null // User cancelled
             }
         }
-        success
+        filePath
     }
 }

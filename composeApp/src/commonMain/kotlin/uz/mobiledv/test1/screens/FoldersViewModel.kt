@@ -27,6 +27,7 @@ import uz.mobiledv.test1.model.Folder
 import uz.mobiledv.test1.util.FileData
 import uz.mobiledv.test1.util.FileSaver
 import com.benasher44.uuid.uuid4
+import uz.mobiledv.test1.util.openFile
 
 
 // ... (Keep existing sealed classes: FoldersUiState, FolderDocumentsUiState, FileUploadUiState, FileDownloadUiState) ...
@@ -333,12 +334,17 @@ class FoldersViewModel(
                     supabaseClient.storage[BUCKET].downloadPublic(document.storageFilePath!!)
 
                 val fileName = document.name
-                val mimeType = document.mimeType ?: "application/octet-stream"
+                val mimeType = document.mimeType ?: "application/octet-stream" // Default MIME type
 
-                val success = fileSaver.saveFile(FileData(fileName, bytes, mimeType))
-                if (success) {
+                // Save the file and get its path or URI string
+                val savedFilePathOrUriString = fileSaver.saveFile(FileData(fileName, bytes, mimeType))
+
+                if (savedFilePathOrUriString != null) {
                     _fileDownloadUiState.value =
-                        FileDownloadUiState.Success(fileName, "File '$fileName' downloaded.")
+                        FileDownloadUiState.Success(fileName, "File '$fileName' downloaded. Opening...")
+                    // Attempt to open the file
+                    // The openFile function is expect/actual and will handle platform specifics
+                    openFile(savedFilePathOrUriString, mimeType)
                 } else {
                     _fileDownloadUiState.value =
                         FileDownloadUiState.Error("Failed to save file '$fileName'.")
