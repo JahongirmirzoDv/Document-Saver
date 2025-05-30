@@ -58,21 +58,8 @@ fun FolderDetailScreen(
     }
 
     LaunchedEffect(folderId, appViewModel.getCurrentUserId()) {
-        if(appViewModel.getCurrentUserId() != null) {
+        if (appViewModel.getCurrentUserId() != null) {
             viewModel.loadDocumentsForFolder(folderId)
-        }
-    }
-
-    if (fileDownloadUiState is FileDownloadUiState.Loading) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator()
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Downloading file...")
-            }
         }
     }
 
@@ -90,7 +77,11 @@ fun FolderDetailScreen(
                 viewModel.clearFileDownloadStatus()
             }
 
-            else -> Unit
+            is FileDownloadUiState.Loading -> {
+                snackbarHostState.showSnackbar("Download in progress...")
+            }
+
+            else -> {}
         }
     }
 
@@ -99,7 +90,9 @@ fun FolderDetailScreen(
             is FileUploadUiState.Success -> {
                 snackbarHostState.showSnackbar(state.message)
                 viewModel.clearFileUploadStatus()
-                if(appViewModel.getCurrentUserId() != null) viewModel.loadDocumentsForFolder(folderId) // Refresh list
+                if (appViewModel.getCurrentUserId() != null) viewModel.loadDocumentsForFolder(
+                    folderId
+                ) // Refresh list
             }
 
             is FileUploadUiState.Error -> {
@@ -185,9 +178,9 @@ fun FolderDetailScreen(
                                                 viewModel.deleteDocument(document)
                                             }
                                         },
-                                        onDownloadFile = { // Download icon still performs the same action
-                                            viewModel.downloadFile(document)
-                                        }
+//                                        onDownloadFile = { // Download icon still performs the same action
+//                                            viewModel.downloadFile(document)
+//                                        }
                                     )
                                 }
                             }
@@ -203,7 +196,9 @@ fun FolderDetailScreen(
                             Text("Error: ${state.message}", maxLines = 3)
                             Spacer(Modifier.height(8.dp))
                             Button(onClick = {
-                                if(appViewModel.getCurrentUserId() != null) viewModel.loadDocumentsForFolder(folderId)
+                                if (appViewModel.getCurrentUserId() != null) viewModel.loadDocumentsForFolder(
+                                    folderId
+                                )
                             }) {
                                 Text("Retry")
                             }

@@ -1,8 +1,9 @@
-// Located in: jahongirmirzodv/test.1.2/Test.1.2-e8bc22d6ec882d29fdc4fa507b210d7398d64cde/composeApp/src/commonMain/kotlin/uz/mobiledv/test1/screens/FoldersViewModel.kt
+// File: jahongirmirzodv/test.1.2/Test.1.2-fcc101c924a3dcb58258c4f63c298289470731ad/composeApp/src/commonMain/kotlin/uz/mobiledv/test1/screens/FoldersViewModel.kt
 package uz.mobiledv.test1.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.benasher44.uuid.uuid4
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
@@ -14,11 +15,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
-import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toInstant
-import kotlinx.serialization.decodeFromString // Ensure this import is present
-import uz.mobiledv.test1.data.AuthSettings
+// Removed unused kotlinx.datetime imports for LocalDateTime, TimeZone, toInstant
+import uz.mobiledv.test1.data.AuthSettings // AuthSettings for user context
 import uz.mobiledv.test1.di.BUCKET
 import uz.mobiledv.test1.di.DOCUMENT
 import uz.mobiledv.test1.di.FOLDER
@@ -26,11 +24,9 @@ import uz.mobiledv.test1.model.Document
 import uz.mobiledv.test1.model.Folder
 import uz.mobiledv.test1.util.FileData
 import uz.mobiledv.test1.util.FileSaver
-import com.benasher44.uuid.uuid4
 import uz.mobiledv.test1.util.openFile
 
 
-// ... (Keep existing sealed classes: FoldersUiState, FolderDocumentsUiState, FileUploadUiState, FileDownloadUiState) ...
 sealed class FoldersUiState {
     data object Idle : FoldersUiState()
     data object Loading : FoldersUiState()
@@ -54,8 +50,9 @@ sealed class FileUploadUiState {
 
 sealed class FileDownloadUiState {
     data object Idle : FileDownloadUiState()
-    data object Loading : FileDownloadUiState()
-    data class Success(val fileName: String, val message: String) : FileDownloadUiState()
+    data object Loading : FileDownloadUiState() // General loading state
+    data class Downloading(val fileName: String, val progress: Float) : FileDownloadUiState() // Progress state
+    data class Success(val fileName: String, val message: String, val localPath: String, val mimeType: String?) : FileDownloadUiState()
     data class Error(val message: String) : FileDownloadUiState()
 }
 
@@ -63,7 +60,7 @@ sealed class FileDownloadUiState {
 class FoldersViewModel(
     private val supabaseClient: SupabaseClient,
     private val fileSaver: FileSaver,
-    private val authSettings: AuthSettings
+    private val authSettings: AuthSettings // Injected AuthSettings
 ) : ViewModel() {
 
     private val _foldersUiState = MutableStateFlow<FoldersUiState>(FoldersUiState.Idle)
@@ -104,7 +101,7 @@ class FoldersViewModel(
     fun loadFolders() {
         viewModelScope.launch(Dispatchers.IO) {
             _foldersUiState.value = FoldersUiState.Loading
-            if (authSettings.getCurrentUser() == null) {
+            if (getCurrentUserId() == null) { // Check custom auth status
                 _foldersUiState.value =
                     FoldersUiState.Error("User not authenticated to load folders.")
                 return@launch
@@ -115,52 +112,38 @@ class FoldersViewModel(
                     supabaseClient.postgrest[FOLDER].select(columns = Columns.ALL) {
                         order("name", Order.ASCENDING)
                     }
-                val rawJsonResponse = postgrestResponse.data // Get the raw JSON string
-                println("DEBUG: Raw JSON Response for Folders: $rawJsonResponse") // Log the raw JSON
-
+                // val rawJsonResponse = postgrestResponse.data // For debugging
+                // println("DEBUG: Raw JSON Response for Folders: $rawJsonResponse")
 
                 val folders = postgrestResponse.decodeList<Folder>()
-
                 _foldersUiState.value = FoldersUiState.Success(folders)
             } catch (e: Exception) {
                 _foldersUiState.value = FoldersUiState.Error("Error loading folders: ${e.message}")
                 _operationStatus.value = "Failed to load folders: ${e.message}"
-                println("DEBUG: SerializationException in loadFolders: ${e.localizedMessage}")
-                e.printStackTrace() // This will print the full stack trace
+                e.printStackTrace()
             }
         }
     }
 
-    // ... (keep the rest of your FoldersViewModel methods: createFolder, updateFolder, deleteFolder, loadDocumentsForFolder, uploadFileToFolder, downloadFile, etc.)
-    // Ensure they are the same as the last version I provided.
     fun createFolder(name: String, description: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val currentUserId = getCurrentUserId() ?: run {
                 _operationStatus.value = "User not authenticated to create folder."
                 return@launch
             }
-
-            val specificDateTime = "24.05.2025/09:18 AM" // Example fixed date
-            val (datePart, timePart) = specificDateTime.split('/')
-            val (day, month, year) = datePart.split('.').map { it.toInt() }
-            val (hourMinutePart, amPm) = timePart.split(' ')
-            val (hour, minute) = hourMinutePart.split(':').map { it.toInt() }
-
-            val adjustedHour = when {
-                amPm.equals("PM", ignoreCase = true) && hour != 12 -> hour + 12
-                amPm.equals("AM", ignoreCase = true) && hour == 12 -> 0 // Midnight
-                else -> hour
-            }
-            val localDateTime = LocalDateTime(year, month, day, adjustedHour, minute)
-            val instant = localDateTime.toInstant(TimeZone.UTC)
+            // If only admins can create folders, uncomment this:
+            // if (!isCurrentUserAdmin()) {
+            // _operationStatus.value = "Only designated managers can create folders."
+            // return@launch
+            // }
 
             try {
                 val newFolder = Folder(
-                    id = uuid4().toString(), // Generate ID client-side for folders
+                    id = uuid4().toString(),
                     name = name,
                     description = description,
-                    userId = currentUserId, // Associated with the logged-in user
-                    createdAt = instant.toString(),
+                    userId = currentUserId,
+                    createdAt = Clock.System.now().toString(), // FIXED: Use current time
                 )
                 supabaseClient.postgrest[FOLDER].insert(newFolder)
                 _operationStatus.value = "Folder '$name' created successfully."
@@ -174,8 +157,8 @@ class FoldersViewModel(
 
     fun updateFolder(folderId: String, name: String, description: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val currentUserId = getCurrentUserId() ?: run {
-                _operationStatus.value = "User not authenticated to update folder."
+            getCurrentUserId() ?: run { // Ensure authenticated
+                _operationStatus.value = "User not authenticated."
                 return@launch
             }
             if (!isCurrentUserAdmin()) {
@@ -205,8 +188,8 @@ class FoldersViewModel(
 
     fun deleteFolder(folderId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val currentUserId = getCurrentUserId() ?: run {
-                _operationStatus.value = "User not authenticated to delete folder."
+            getCurrentUserId() ?: run { // Ensure authenticated
+                _operationStatus.value = "User not authenticated."
                 return@launch
             }
             if (!isCurrentUserAdmin()) {
@@ -214,6 +197,7 @@ class FoldersViewModel(
                 return@launch
             }
             try {
+                // Consider cascade delete for documents or delete them manually first
                 supabaseClient.postgrest[FOLDER]
                     .delete {
                         filter { eq("id", folderId) }
@@ -230,7 +214,7 @@ class FoldersViewModel(
     fun loadDocumentsForFolder(folderId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             _folderDocumentsUiState.value = FolderDocumentsUiState.Loading
-            if (authSettings.getCurrentUser() == null) {
+            if (getCurrentUserId() == null) {
                 _folderDocumentsUiState.value =
                     FolderDocumentsUiState.Error("User not authenticated to load documents.")
                 return@launch
@@ -267,56 +251,37 @@ class FoldersViewModel(
             }
 
             val originalFileName = fileData.name
-            // Log the original filename as received by the ViewModel
-            println("FoldersViewModel: Original filename from FileData: \"$originalFileName\"")
-
-            // Generate a completely safe name for storage, using only UUID and a sanitized extension.
             val fileExtension = originalFileName.substringAfterLast('.', "").trim().lowercase()
-
-            // Sanitize the extension: allow only alphanumeric characters, limit length.
-            // This helps prevent issues if the original filename has a malformed "extension".
             val safeExtension = if (fileExtension.matches(Regex("^[a-zA-Z0-9]+$")) && fileExtension.length <= 5) {
                 ".$fileExtension"
             } else {
-                "" // If no valid extension, or it's unusual, don't append anything or use a default like ".bin"
+                ""
             }
-
             val uniqueStorageObjectName = "${uuid4()}$safeExtension"
-
-            // Construct the storage path. currentUserId and folderId should already be UUIDs and thus safe.
             val storagePath = "${currentUserId}/folder_${folderId}/${uniqueStorageObjectName}"
 
-            // CRITICAL LOG: Print the exact path being sent to Supabase Storage
-            println("FoldersViewModel: Attempting to upload to Supabase Storage with path: \"$storagePath\"")
-
             try {
-                supabaseClient.storage[BUCKET].upload( // BUCKET is "second"
-                    path = storagePath, // This path MUST be clean
+                supabaseClient.storage[BUCKET].upload(
+                    path = storagePath,
                     data = fileData.bytes,
                     options = { upsert = false }
                 )
 
-                // Store the originalFileName in your database, and the storagePath for retrieval
                 val documentMetadata = Document(
                     id = uuid4().toString(),
                     folderId = folderId,
-                    name = originalFileName, // Store the original, user-facing filename (e.g., "мой файл.pdf")
-                    storageFilePath = storagePath, // Store the clean path (e.g., "uuid/folder_uuid/another_uuid.pdf")
+                    name = originalFileName,
+                    storageFilePath = storagePath,
                     userId = currentUserId,
                     mimeType = fileData.mimeType,
                     createdAt = Clock.System.now().toString()
                 )
-
                 supabaseClient.postgrest[DOCUMENT].insert(documentMetadata)
-
-                _fileUploadUiState.value =
-                    FileUploadUiState.Success("File '${originalFileName}' uploaded.")
-                loadDocumentsForFolder(folderId) // Refresh list
+                _fileUploadUiState.value = FileUploadUiState.Success("File '${originalFileName}' uploaded.")
+                loadDocumentsForFolder(folderId)
             } catch (e: Exception) {
                 _fileUploadUiState.value = FileUploadUiState.Error("Upload failed: ${e.message}")
-                // Print the stack trace to see the full context of the Supabase error
                 e.printStackTrace()
-                println("FoldersViewModel: Supabase upload failed for storagePath: \"$storagePath\" with original filename: \"$originalFileName\"")
             }
         }
     }
@@ -328,34 +293,38 @@ class FoldersViewModel(
                 return@launch
             }
 
-            _fileDownloadUiState.value = FileDownloadUiState.Loading
+            _fileDownloadUiState.value = FileDownloadUiState.Downloading(document.name, 0f) // Initial progress
             try {
-                val bytes =
-                    supabaseClient.storage[BUCKET].downloadPublic(document.storageFilePath!!)
+                // Actual download from Supabase storage
+                val bytes = supabaseClient.storage[BUCKET].downloadPublic(document.storageFilePath!!)
+                _fileDownloadUiState.value = FileDownloadUiState.Downloading(document.name, 0.5f) // Simulate mid-progress after download
 
                 val fileName = document.name
-                val mimeType = document.mimeType ?: "application/octet-stream" // Default MIME type
+                val mimeType = document.mimeType ?: "application/octet-stream"
 
-                // Save the file and get its path or URI string
+                // Save the file using the platform-specific FileSaver
                 val savedFilePathOrUriString = fileSaver.saveFile(FileData(fileName, bytes, mimeType))
+                _fileDownloadUiState.value = FileDownloadUiState.Downloading(document.name, 1f) // Simulate completion of save
 
                 if (savedFilePathOrUriString != null) {
-                    _fileDownloadUiState.value =
-                        FileDownloadUiState.Success(fileName, "File '$fileName' downloaded. Opening...")
-                    // Attempt to open the file
-                    // The openFile function is expect/actual and will handle platform specifics
+                    _fileDownloadUiState.value = FileDownloadUiState.Success(
+                        fileName = fileName,
+                        message = "File '$fileName' downloaded. Opening...",
+                        localPath = savedFilePathOrUriString,
+                        mimeType = mimeType
+                    )
+                    // Attempt to open the file (platform-specific)
                     openFile(savedFilePathOrUriString, mimeType)
                 } else {
-                    _fileDownloadUiState.value =
-                        FileDownloadUiState.Error("Failed to save file '$fileName'.")
+                    _fileDownloadUiState.value = FileDownloadUiState.Error("Failed to save file '$fileName'.")
                 }
             } catch (e: Exception) {
-                _fileDownloadUiState.value =
-                    FileDownloadUiState.Error("Download failed: ${e.message}")
+                _fileDownloadUiState.value = FileDownloadUiState.Error("Download failed for '${document.name}': ${e.message}")
                 e.printStackTrace()
             }
         }
     }
+
 
     fun clearFileDownloadStatus() {
         _fileDownloadUiState.value = FileDownloadUiState.Idle
@@ -395,7 +364,6 @@ class FoldersViewModel(
             }
         }
     }
-
 
     fun clearFileUploadStatus() {
         _fileUploadUiState.value = FileUploadUiState.Idle
