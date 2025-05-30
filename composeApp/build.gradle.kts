@@ -147,7 +147,7 @@ compose.desktop {
             windows {
                 iconFile.set(project.file("src/desktopMain/composeResources/icons/icon.ico"))
                 // menuGroup = "My Awesome App"
-                // shortcut = true
+                 shortcut = true
                 // ... other windows specific settings
             }
         }
