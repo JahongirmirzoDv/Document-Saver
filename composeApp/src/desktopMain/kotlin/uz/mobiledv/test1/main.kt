@@ -9,6 +9,7 @@ import org.jetbrains.compose.resources.getResourceUri
 import org.jetbrains.compose.resources.painterResource
 import org.koin.mp.KoinPlatform
 import test1.composeapp.generated.resources.Res
+import test1.composeapp.generated.resources.allDrawableResources
 import uz.mobiledv.test1.di.initKoin
 import uz.mobiledv.test1.util.FileSaver
 
@@ -16,7 +17,7 @@ fun main() = application {
     initKoin()
 
     val koin = KoinPlatform.getKoin()
-//    val icon = useResource("drawable/my_window_icon.png") { loadImageBitmap(it) }
+//    val icon = painterResource(DrawableResource(Res.allDrawableResources., "png_icon.png"))
 
     try {
         val fileSaverInstance = koin.get<FileSaver>() // Attempt to get FileSaver

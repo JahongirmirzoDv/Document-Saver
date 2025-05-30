@@ -143,12 +143,21 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "uz.mobiledv.test1"
             packageVersion = "1.0.0"
+            description = "Document Saver - A cross-platform document management application"
+            copyright = "© 2025 MobileDv"
+            vendor = "MobileDv"
 
             windows {
-                iconFile.set(project.file("src/desktopMain/composeResources/icons/icon.ico"))
+                iconFile.set(project.file("composeApp/src/commonMain/composeResources/drawable/win_icon.ico"))
                 // menuGroup = "My Awesome App"
+
                  shortcut = true
                 // ... other windows specific settings
+            }
+            macOS {
+                iconFile.set(project.file("composeApp/src/commonMain/composeResources/drawable/mac_icon.icns"))
+                // menuGroup = "My Awesome App"
+                // ... other macOS specific settings
             }
         }
     }
