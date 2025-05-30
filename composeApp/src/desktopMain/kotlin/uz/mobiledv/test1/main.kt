@@ -3,6 +3,8 @@ package uz.mobiledv.test1
 import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.res.useResource
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.getResourceUri
@@ -30,6 +32,7 @@ fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = "Doc Saver",
+        state = WindowState(placement = WindowPlacement.Maximized),
     ) {
         App()
     }

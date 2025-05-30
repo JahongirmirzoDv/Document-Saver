@@ -148,14 +148,14 @@ compose.desktop {
             vendor = "MobileDv"
 
             windows {
-                iconFile.set(project.file("composeApp/src/commonMain/composeResources/drawable/win_icon.ico"))
+                iconFile.set(project.file("src/desktopMain/resources/icons/win_icon.ico"))
                 // menuGroup = "My Awesome App"
 
                  shortcut = true
                 // ... other windows specific settings
             }
             macOS {
-                iconFile.set(project.file("composeApp/src/commonMain/composeResources/drawable/mac_icon.icns"))
+                iconFile.set(project.file("src/desktopMain/resources/icons/mac_icon.icns"))
                 // menuGroup = "My Awesome App"
                 // ... other macOS specific settings
             }
