@@ -1,3 +1,5 @@
+// File: jahongirmirzodv/test.1.2/Test.1.2-ce174411ff66ed9510ec8cd734b4eb2fd3d73d03/composeApp/src/commonMain/kotlin/uz/mobiledv/test1/screens/FolderDetailScreen.kt
+
 package uz.mobiledv.test1.screens
 
 import androidx.compose.foundation.clickable
@@ -42,15 +44,11 @@ fun FolderDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // isManager determines if upload/delete actions are available.
-    // Read access is for all authenticated users.
     val isManager by remember { derivedStateOf { appViewModel.isManager } }
-
     val fileDownloadUiState by viewModel.fileDownloadUiState.collectAsStateWithLifecycle()
 
     val filePickerLauncher = rememberFilePickerLauncher { fileData ->
         if (fileData != null) {
-            // Upload action is restricted to managers in FoldersViewModel
             viewModel.uploadFileToFolder(folderId, fileData)
         } else {
             scope.launch {
@@ -59,13 +57,11 @@ fun FolderDetailScreen(
         }
     }
 
-    // Initial load of documents for the folder
-    LaunchedEffect(folderId, appViewModel.getCurrentUserId()) { // Reload if folderId or user changes
-        if(appViewModel.getCurrentUserId() != null) { // Only load if authenticated
+    LaunchedEffect(folderId, appViewModel.getCurrentUserId()) {
+        if(appViewModel.getCurrentUserId() != null) {
             viewModel.loadDocumentsForFolder(folderId)
         }
     }
-
 
     if (fileDownloadUiState is FileDownloadUiState.Loading) {
         Box(
@@ -83,6 +79,8 @@ fun FolderDetailScreen(
     LaunchedEffect(fileDownloadUiState) {
         when (val state = fileDownloadUiState) {
             is FileDownloadUiState.Success -> {
+                // The openFile logic (which triggers chooser) is now inside FoldersViewModel
+                // So, just show the success message.
                 snackbarHostState.showSnackbar(state.message)
                 viewModel.clearFileDownloadStatus()
             }
@@ -113,20 +111,19 @@ fun FolderDetailScreen(
         }
     }
 
-
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(folderName) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") // Updated Icon
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 }
             )
         },
         floatingActionButton = {
-            if (isManager) { // Upload FAB only for managers
+            if (isManager) {
                 FloatingActionButton(onClick = { filePickerLauncher() }) {
                     Icon(Icons.Filled.CloudUpload, "Upload File")
                 }
@@ -137,7 +134,7 @@ fun FolderDetailScreen(
         PullToRefreshBox(
             modifier = Modifier
                 .fillMaxSize(),
-            isRefreshing = documentsUiState is FolderDocumentsUiState.Loading, // Reflect ViewModel's loading state
+            isRefreshing = documentsUiState is FolderDocumentsUiState.Loading,
             onRefresh = {
                 viewModel.loadDocumentsForFolder(folderId)
             }
@@ -168,7 +165,6 @@ fun FolderDetailScreen(
                                     modifier = Modifier.size(48.dp)
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
-                                // Text changes slightly based on whether user is manager or not
                                 Text(if (isManager) "No documents yet. Tap '+' to upload." else "No documents in this folder.")
                             }
                         } else {
@@ -178,30 +174,18 @@ fun FolderDetailScreen(
                                 items(state.documents, key = { it.id }) { document ->
                                     DocumentItem(
                                         document = document,
-                                        isManager = isManager, // Pass for delete button visibility
+                                        isManager = isManager,
+                                        // MODIFIED onClick:
+                                        // Now, clicking the item itself will trigger download and then open for all users.
                                         onClick = {
-                                            // Click on item could mean download for non-managers,
-                                            // or view details/preview for managers.
-                                            // For now, download is via explicit button in DocumentItem.
-                                            // If manager clicks item, could show metadata or preview.
-                                            // If non-manager clicks item, could also trigger download.
-                                            // Let's keep primary download via the icon button for now for clarity.
-                                            if (!isManager) {
-                                                viewModel.downloadFile(document)
-                                            } else {
-                                                scope.launch {
-                                                    snackbarHostState.showSnackbar("Manager clicked: ${document.name}. (View/Edit actions can be added)")
-                                                }
-                                            }
+                                            viewModel.downloadFile(document)
                                         },
-                                        onDeleteClick = { // This is specifically for the delete icon
+                                        onDeleteClick = {
                                             if (isManager) {
-                                                // Consider adding a confirmation dialog before deleting
                                                 viewModel.deleteDocument(document)
                                             }
                                         },
-                                        onDownloadFile = { // This is for the download icon
-                                            // Any authenticated user can download
+                                        onDownloadFile = { // Download icon still performs the same action
                                             viewModel.downloadFile(document)
                                         }
                                     )
@@ -233,20 +217,19 @@ fun FolderDetailScreen(
                             verticalArrangement = Arrangement.Center
                         ) {
                             Text("Initializing document view...")
-                            // LaunchedEffect above handles initial load if authenticated
                         }
                     }
                 }
 
                 if (fileUploadUiState is FileUploadUiState.Loading) {
                     Box(
-                        modifier = Modifier.fillMaxSize().align(Alignment.Center), // Ensure it's centered over content
+                        modifier = Modifier.fillMaxSize().align(Alignment.Center),
                         contentAlignment = Alignment.Center
                     ) {
                         Surface(
                             modifier = Modifier.padding(32.dp),
                             shape = MaterialTheme.shapes.medium,
-                            tonalElevation = 8.dp, // or shadowElevation
+                            tonalElevation = 8.dp,
                             shadowElevation = 8.dp
                         ) {
                             Column(

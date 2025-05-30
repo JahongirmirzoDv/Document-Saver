@@ -3,6 +3,5 @@
     <cache-path name="shared_apk" path="apk_updates/" />
     <cache-path name="shared_files" path="shared_files/" />
     <external-files-path name="external_files" path="." />
-    <!-- Or -->
     <files-path name="internal_files" path="." />
 </paths>
