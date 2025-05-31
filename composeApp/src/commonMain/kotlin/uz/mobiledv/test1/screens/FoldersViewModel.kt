@@ -314,6 +314,7 @@ class FoldersViewModel(
                         mimeType = mimeType
                     )
                     // Attempt to open the file (platform-specific)
+                    println(savedFilePathOrUriString)
                     openFile(savedFilePathOrUriString, mimeType)
                 } else {
                     _fileDownloadUiState.value = FileDownloadUiState.Error("Failed to save file '$fileName'.")
