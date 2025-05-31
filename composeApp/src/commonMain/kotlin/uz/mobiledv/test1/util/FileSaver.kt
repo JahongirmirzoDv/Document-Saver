@@ -2,6 +2,8 @@ package uz.mobiledv.test1.util
 
 expect class FileSaver {
     suspend fun saveFile(fileData: FileData): String?
+
+    suspend fun saveFileToPublicDownloads(fileData: FileData): String?
 }
 
 /**

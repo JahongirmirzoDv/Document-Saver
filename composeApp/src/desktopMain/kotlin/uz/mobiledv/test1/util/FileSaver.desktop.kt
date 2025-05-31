@@ -33,4 +33,10 @@ actual class FileSaver {
         }
         filePath
     }
+
+    actual suspend fun saveFileToPublicDownloads(fileData: FileData): String? {
+        // On desktop, the standard saveFile dialog allows the user to choose any location,
+        // including their Downloads folder. So, we can reuse the existing logic.
+        return saveFile(fileData)
+    }
 }

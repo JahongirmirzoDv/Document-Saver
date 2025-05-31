@@ -14,12 +14,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Article // Default document icon
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description // Alternative for generic documents
+import androidx.compose.material.icons.filled.Download // Import Download icon
 import androidx.compose.material.icons.filled.Image // For common image types
 import androidx.compose.material.icons.filled.Movie // For video
 import androidx.compose.material.icons.filled.MusicNote // For audio
 import androidx.compose.material.icons.filled.PictureAsPdf // For PDF
-// For Word, Excel, etc., you might need to find more specific icons or use a generic one.
-// Consider adding the material-icons-extended dependency if not already present for more options.
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -40,8 +39,9 @@ import uz.mobiledv.test1.model.Document // Your Document model
 fun DocumentItem(
     document: Document,
     isManager: Boolean,      // To control visibility of delete button
-    onClick: () -> Unit,      // Primary action: view/open (which includes download)
-    onDeleteClick: () -> Unit // For the delete icon button
+    onClick: () -> Unit,      // Primary action: view/open (which includes download to cache)
+    onDeleteClick: () -> Unit, // For the delete icon button
+    onDownloadToPublicClick: () -> Unit // New: For saving to public Downloads folder
 ) {
     val mimeType = document.mimeType?.lowercase()
     val type = mimeType?.substringBefore('/')
@@ -60,7 +60,7 @@ fun DocumentItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }, // Card click triggers the main action
+            .clickable { onClick() }, // Card click triggers the main action (open/view)
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = MaterialTheme.shapes.medium
     ) {
@@ -93,19 +93,15 @@ fun DocumentItem(
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    // Secondary information with a more subtle style
                     val details = mutableListOf<String>()
                     document.mimeType?.let { details.add(it) }
-                    // If you add fileSize to your Document model:
-                    // document.fileSize?.let { details.add(formatFileSize(it)) } // You'd need a formatFileSize helper
                     document.createdAt?.let {
-                        // You might want to format this date more nicely
                         details.add("Added: ${it.take(10)}")
                     }
 
                     if (details.isNotEmpty()) {
                         Text(
-                            text = details.joinToString(" • "), // Separator for details
+                            text = details.joinToString(" • "),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -115,29 +111,32 @@ fun DocumentItem(
                 }
             }
 
-            // Actions column (Delete button for manager)
-            if (isManager) {
+            // Actions column
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Spacer(modifier = Modifier.width(8.dp)) // Space before action buttons
-                IconButton(
-                    onClick = onDeleteClick,
-                    modifier = Modifier.size(40.dp) // Consistent touch target size
+                IconButton( // New Download Button
+                    onClick = onDownloadToPublicClick,
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
-                        Icons.Filled.Delete,
-                        contentDescription = "Delete Document",
-                        tint = MaterialTheme.colorScheme.error
+                        Icons.Filled.Download,
+                        contentDescription = "Download to Public Folder",
+                        tint = MaterialTheme.colorScheme.secondary
                     )
+                }
+                if (isManager) {
+                    IconButton(
+                        onClick = onDeleteClick,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = "Delete Document",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         }
     }
 }
-
-// Optional: Helper function to format file size (if you add it to Document model)
-// fun formatFileSize(bytes: Long): String {
-//    if (bytes < 1024) return "$bytes B"
-//    val kb = bytes / 1024
-//    if (kb < 1024) return "$kb KB"
-//    val mb = kb / 1024
-//    return "$mb MB"
-// }

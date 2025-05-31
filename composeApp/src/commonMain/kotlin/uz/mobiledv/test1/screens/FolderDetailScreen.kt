@@ -45,14 +45,15 @@ fun FolderDetailScreen(
     val scope = rememberCoroutineScope()
 
     val isManager by remember { derivedStateOf { appViewModel.isManager } }
-    val fileDownloadUiState by viewModel.fileDownloadUiState.collectAsStateWithLifecycle()
+    val fileDownloadUiState by viewModel.fileDownloadUiState.collectAsStateWithLifecycle() // For cache/open
+    val filePublicDownloadUiState by viewModel.filePublicDownloadUiState.collectAsStateWithLifecycle() // New: for public downloads
 
     val filePickerLauncher = rememberFilePickerLauncher { fileData ->
         if (fileData != null) {
             viewModel.uploadFileToFolder(folderId, fileData)
         } else {
             scope.launch {
-                snackbarHostState.showSnackbar("File selection cancelled.")
+                snackbarHostState.showSnackbar("File selection cancelled or invalid type.")
             }
         }
     }
@@ -63,34 +64,44 @@ fun FolderDetailScreen(
         }
     }
 
+    // LaunchedEffect for cache/open download state
     LaunchedEffect(fileDownloadUiState) {
         when (val state = fileDownloadUiState) {
             is FileDownloadUiState.Success -> {
-                // The openFile logic (which triggers chooser) is now inside FoldersViewModel
-                // So, just show the success message.
                 snackbarHostState.showSnackbar(state.message)
-                viewModel.clearFileDownloadStatus()
+                viewModel.clearFileDownloadStatus() // Clear this specific state
             }
-
             is FileDownloadUiState.Error -> {
-                snackbarHostState.showSnackbar("Download Error: ${state.message}")
+                snackbarHostState.showSnackbar("Open Error: ${state.message}")
                 viewModel.clearFileDownloadStatus()
             }
-
-            is FileDownloadUiState.Loading -> {
-                snackbarHostState.showSnackbar("Download in progress...")
-            }
-
             is FileDownloadUiState.Downloading -> {
-                snackbarHostState.showSnackbar(
-                    "Downloading file: ${state.fileName}",
-                    duration = SnackbarDuration.Long
-                )
+                // Can show a distinct message or rely on the general "Loading"
             }
-
-            else -> Unit // Idle or other states do not require action
+            else -> Unit
         }
     }
+
+    // New LaunchedEffect for public download state
+    LaunchedEffect(filePublicDownloadUiState) {
+        when (val state = filePublicDownloadUiState) {
+            is FilePublicDownloadUiState.Success -> {
+                snackbarHostState.showSnackbar(state.message)
+                viewModel.clearFilePublicDownloadStatus() // Clear this specific state
+            }
+            is FilePublicDownloadUiState.Error -> {
+                snackbarHostState.showSnackbar("Download Error: ${state.message}")
+                viewModel.clearFilePublicDownloadStatus()
+            }
+            is FilePublicDownloadUiState.Downloading -> {
+                // Could show a persistent snackbar or a dialog for progress if desired
+                // For now, just a transient message:
+                // snackbarHostState.showSnackbar("Downloading ${state.fileName}: ${(state.progress * 100).toInt()}%")
+            }
+            else -> Unit
+        }
+    }
+
 
     LaunchedEffect(fileUploadUiState) {
         when (val state = fileUploadUiState) {
@@ -178,19 +189,17 @@ fun FolderDetailScreen(
                                     DocumentItem(
                                         document = document,
                                         isManager = isManager,
-                                        // MODIFIED onClick:
-                                        // Now, clicking the item itself will trigger download and then open for all users.
-                                        onClick = {
-                                            viewModel.downloadFile(document)
+                                        onClick = { // Clicking item opens/views (downloads to cache first)
+                                            viewModel.downloadAndOpenFile(document)
                                         },
                                         onDeleteClick = {
                                             if (isManager) {
                                                 viewModel.deleteDocument(document)
                                             }
                                         },
-//                                        onDownloadFile = { // Download icon still performs the same action
-//                                            viewModel.downloadFile(document)
-//                                        }
+                                        onDownloadToPublicClick = { // New action for download button
+                                            viewModel.downloadAndSaveToPublicDownloads(document)
+                                        }
                                     )
                                 }
                             }
@@ -226,7 +235,18 @@ fun FolderDetailScreen(
                     }
                 }
 
-                if (fileUploadUiState is FileUploadUiState.Loading) {
+                // Loading indicator for general operations (upload, public download, cache download)
+                val isLoadingPublicDownload = filePublicDownloadUiState is FilePublicDownloadUiState.Downloading
+                val isLoadingCacheDownload = fileDownloadUiState is FileDownloadUiState.Downloading || fileDownloadUiState is FileDownloadUiState.Loading
+                val isLoadingUpload = fileUploadUiState is FileUploadUiState.Loading
+
+                if (isLoadingPublicDownload || isLoadingCacheDownload || isLoadingUpload) {
+                    val message = when {
+                        isLoadingPublicDownload -> "Downloading to public folder..."
+                        isLoadingCacheDownload -> "Preparing file to open..."
+                        isLoadingUpload -> "Uploading file..."
+                        else -> "Processing..."
+                    }
                     Box(
                         modifier = Modifier.fillMaxSize().align(Alignment.Center),
                         contentAlignment = Alignment.Center
@@ -243,7 +263,7 @@ fun FolderDetailScreen(
                             ) {
                                 CircularProgressIndicator()
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text("Uploading file...")
+                                Text(message)
                             }
                         }
                     }
