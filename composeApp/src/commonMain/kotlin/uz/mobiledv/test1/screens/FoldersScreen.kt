@@ -99,7 +99,7 @@ fun FoldersScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Folders") }, // Unified title
+                title = { Text("Hujjatlar") }, // Unified title
                 actions = {
                     if (isManager) { // Actions for managers (Desktop Admin)
                         IconButton(onClick = { showAddFolderDialog = true }) {

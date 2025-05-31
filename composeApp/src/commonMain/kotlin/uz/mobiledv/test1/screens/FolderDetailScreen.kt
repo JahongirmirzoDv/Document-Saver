@@ -81,7 +81,14 @@ fun FolderDetailScreen(
                 snackbarHostState.showSnackbar("Download in progress...")
             }
 
-            else -> {}
+            is FileDownloadUiState.Downloading -> {
+                snackbarHostState.showSnackbar(
+                    "Downloading file: ${state.fileName}",
+                    duration = SnackbarDuration.Long
+                )
+            }
+
+            else -> Unit // Idle or other states do not require action
         }
     }
 
@@ -162,7 +169,10 @@ fun FolderDetailScreen(
                             }
                         } else {
                             LazyColumn(
-                                modifier = Modifier.fillMaxSize().padding(16.dp)
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
                                 items(state.documents, key = { it.id }) { document ->
                                     DocumentItem(
