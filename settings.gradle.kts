@@ -1,4 +1,4 @@
-rootProject.name = "Test1"
+rootProject.name = "DocSaver"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

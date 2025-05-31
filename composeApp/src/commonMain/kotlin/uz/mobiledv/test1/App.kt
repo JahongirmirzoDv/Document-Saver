@@ -23,6 +23,9 @@ import uz.mobiledv.test1.screens.FolderDetailScreen
 import uz.mobiledv.test1.screens.FoldersScreen
 import uz.mobiledv.test1.screens.LoginScreen
 import uz.mobiledv.test1.ui.AppTheme
+import java.net.URLDecoder
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 @Composable
 @Preview
@@ -106,7 +109,13 @@ fun App() {
                     FoldersScreen(
                         appViewModel = viewModel,
                         onFolderClick = { folder ->
-                            navController.navigate("folderDetail/${folder.id}/${folder.name}")
+                            val encodedFolderName = try {
+                                URLEncoder.encode(folder.name, StandardCharsets.UTF_8.toString())
+                            } catch (e: Exception) {
+                                // Fallback or error handling if encoding fails, though unlikely with UTF-8
+                                folder.name // Or some default/error placeholder
+                            }
+                            navController.navigate("folderDetail/${folder.id}/$encodedFolderName")
                         },
                         onLogout = {
                             viewModel.logout()
@@ -122,7 +131,17 @@ fun App() {
                     )
                 ) { backStackEntry ->
                     val folderId = backStackEntry.arguments?.getString("folderId")
-                    val folderName = backStackEntry.arguments?.getString("folderName")
+//                    val folderName = backStackEntry.arguments?.getString("folderName")
+                    val encodedFolderNameFromArgs = backStackEntry.arguments?.getString("folderName")
+
+
+                    val folderName = try {
+                        encodedFolderNameFromArgs?.let { URLDecoder.decode(it, StandardCharsets.UTF_8.toString()) }
+                    } catch (e: Exception) {
+                        // Fallback or error handling if decoding fails
+                        encodedFolderNameFromArgs // Or some default/error placeholder
+                    }
+
                     if (folderId != null && folderName != null) {
                         FolderDetailScreen(
                             folderId = folderId,

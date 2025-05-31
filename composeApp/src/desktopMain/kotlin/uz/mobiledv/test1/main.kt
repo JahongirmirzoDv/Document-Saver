@@ -1,17 +1,10 @@
 package uz.mobiledv.test1
 
-import androidx.compose.ui.res.loadImageBitmap
-import androidx.compose.ui.res.useResource
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
-import org.jetbrains.compose.resources.DrawableResource
-import org.jetbrains.compose.resources.getResourceUri
-import org.jetbrains.compose.resources.painterResource
 import org.koin.mp.KoinPlatform
-import test1.composeapp.generated.resources.Res
-import test1.composeapp.generated.resources.allDrawableResources
 import uz.mobiledv.test1.di.initKoin
 import uz.mobiledv.test1.util.FileSaver
 
