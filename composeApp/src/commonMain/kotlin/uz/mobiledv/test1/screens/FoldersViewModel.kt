@@ -37,9 +37,9 @@ sealed class FolderContentUiState {
 
 sealed class FileUploadUiState {
     data object Idle : FileUploadUiState()
-    data object Loading : FileUploadUiState()
-    data class Success(val message: String) : FileUploadUiState()
-    data class Error(val message: String) : FileUploadUiState()
+    data object Loading : FileUploadUiState() // Represents loading for the entire batch
+    data class Success(val message: String) : FileUploadUiState() // Overall success/summary message
+    data class Error(val message: String) : FileUploadUiState() // Overall error/summary message
 }
 
 sealed class FileDownloadUiState { // For cache/open
@@ -109,35 +109,23 @@ class FoldersViewModel(
                 val subFolders = supabaseClient.postgrest[FOLDER].select {
                     filter {
                         if (parentId == null) {
-                            // For root folders, parent_id should be explicitly NULL
-                            // Using FilterOperator.IS for clarity with null values
-//                            exact("parent_id", false)
                             filter("parent_id", FilterOperator.IS,"null")
-//                            eq("parent_id", FilterOperator.IS, "null")
                         } else {
-                            // For subfolders, parent_id should match the given parentId
                             eq("parent_id", parentId)
                         }
-                        // Optional: If root folders are also user-specific
-                        // if (parentId == null && !isCurrentUserAdmin()) {
-                        //     eq("user_id", currentUserId)
-                        // }
                     }
                     order("name", Order.ASCENDING)
                 }.decodeList<Folder>()
 
-                // Fetch documents in the current folder (only if inside a folder, not at root)
                 val documents = if (parentId != null) {
                     supabaseClient.postgrest[DOCUMENT].select {
                         filter {
                             eq("folder_id", parentId)
-                            // Optional: filter by user_id if documents are strictly user-owned
-                            // eq("user_id", currentUserId)
                         }
-                        order("name", Order.ASCENDING) // Or created_at
+                        order("name", Order.ASCENDING)
                     }.decodeList<Document>()
                 } else {
-                    emptyList() // No documents displayed at the root level alongside root folders
+                    emptyList()
                 }
 
                 _folderContentUiState.value = FolderContentUiState.Success(subFolders, documents)
@@ -156,13 +144,6 @@ class FoldersViewModel(
                 _operationStatus.value = "User not authenticated to create folder."
                 return@launch
             }
-            // For now, allowing any authenticated user to create folders/subfolders.
-            // Add isCurrentUserAdmin() check if only admins should create.
-            // if (!isCurrentUserAdmin() && parentId == null) { // Example: only admins create root folders
-            //     _operationStatus.value = "Only managers can create root folders."
-            //     return@launch
-            // }
-
             try {
                 val newFolder = Folder(
                     id = uuid4().toString(),
@@ -174,7 +155,7 @@ class FoldersViewModel(
                 )
                 supabaseClient.postgrest[FOLDER].insert(newFolder)
                 _operationStatus.value = "Folder '$name' created successfully."
-                loadFolderContents(parentId) // Refresh the parent folder's content
+                loadFolderContents(parentId)
             } catch (e: Exception) {
                 _operationStatus.value = "Error creating folder: ${e.message}"
                 e.printStackTrace()
@@ -193,7 +174,7 @@ class FoldersViewModel(
                 _operationStatus.value = "User not authenticated."
                 return@launch
             }
-            if (!isCurrentUserAdmin()) { // Only admins can edit
+            if (!isCurrentUserAdmin()) {
                 _operationStatus.value = "Only designated managers can update folders."
                 return@launch
             }
@@ -208,7 +189,7 @@ class FoldersViewModel(
                         filter { eq("id", folderId) }
                     }
                 _operationStatus.value = "Folder '$name' updated successfully."
-                loadFolderContents(currentParentId) // Refresh the list where the folder was
+                loadFolderContents(currentParentId)
             } catch (e: Exception) {
                 _operationStatus.value = "Error updating folder: ${e.message}"
                 e.printStackTrace()
@@ -222,20 +203,11 @@ class FoldersViewModel(
                 _operationStatus.value = "User not authenticated."
                 return@launch
             }
-            if (!isCurrentUserAdmin()) { // Only admins can delete
+            if (!isCurrentUserAdmin()) {
                 _operationStatus.value = "Only designated managers can delete folders."
                 return@launch
             }
-
-            // Implement recursive deletion or prevent deletion of non-empty folders
-            // For now, simple deletion of the folder record.
-            // WARNING: This does not delete sub-folders or documents within this folder from the DB.
-            // You need to implement that logic here (query and delete children first)
-            // or set up CASCADE DELETE in your PostgreSQL database.
             try {
-                // 1. TODO: Delete documents in this folder from DB and Storage
-                // 2. TODO: Delete sub-folders (recursively)
-                // 3. Delete the folder itself
                 supabaseClient.postgrest[FOLDER].delete { filter { eq("id", folderId) } }
                 _operationStatus.value =
                     "Folder deleted. (Note: Contents might require manual cleanup or DB cascade rules)."
@@ -247,60 +219,79 @@ class FoldersViewModel(
         }
     }
 
-    fun uploadFileToFolder(targetFolderId: String, fileData: FileData) {
+    fun uploadFilesToFolder(targetFolderId: String, filesData: List<FileData>) {
         viewModelScope.launch(Dispatchers.IO) {
             _fileUploadUiState.value = FileUploadUiState.Loading
             val currentUserId = getCurrentUserId() ?: run {
                 _fileUploadUiState.value = FileUploadUiState.Error("User not authenticated.")
                 return@launch
             }
-            // Allow any authenticated user to upload into a folder they can see.
-            // Add isCurrentUserAdmin() check if only admins should upload.
             if (!isCurrentUserAdmin()) {
                 _fileUploadUiState.value =
                     FileUploadUiState.Error("Only designated managers can upload files.")
                 return@launch
             }
 
-            val originalFileName = fileData.name
-            val fileExtension = originalFileName.substringAfterLast('.', "").trim().lowercase()
-            val safeExtension =
-                if (fileExtension.matches(Regex("^[a-zA-Z0-9]+$")) && fileExtension.length <= 5) {
-                    ".$fileExtension"
-                } else {
-                    ""
+            var successfulUploads = 0
+            var failedUploads = 0
+            val totalFiles = filesData.size
+
+            for (fileData in filesData) {
+                val originalFileName = fileData.name
+                val fileExtension = originalFileName.substringAfterLast('.', "").trim().lowercase()
+                val safeExtension =
+                    if (fileExtension.matches(Regex("^[a-zA-Z0-9]+$")) && fileExtension.length <= 5) {
+                        ".$fileExtension"
+                    } else {
+                        ""
+                    }
+                val uniqueStorageObjectName = "${uuid4()}$safeExtension"
+                val storagePath =
+                    "user_${currentUserId}/folder_${targetFolderId}/${uniqueStorageObjectName}"
+
+                try {
+                    supabaseClient.storage[BUCKET].upload(
+                        path = storagePath,
+                        data = fileData.bytes,
+                        options = { upsert = false }
+                    )
+
+                    val documentMetadata = Document(
+                        id = uuid4().toString(),
+                        folderId = targetFolderId,
+                        name = originalFileName,
+                        storageFilePath = storagePath,
+                        userId = currentUserId,
+                        mimeType = fileData.mimeType,
+                        createdAt = Clock.System.now().toString()
+                    )
+                    supabaseClient.postgrest[DOCUMENT].insert(documentMetadata)
+                    successfulUploads++
+                } catch (e: Exception) {
+                    failedUploads++
+                    println("Upload failed for ${fileData.name}: ${e.message}") // Log individual error
+                    e.printStackTrace()
                 }
-            val uniqueStorageObjectName = "${uuid4()}$safeExtension"
-            // Store files in a path that includes the folderId for organization in Supabase Storage
-            val storagePath =
-                "user_${currentUserId}/folder_${targetFolderId}/${uniqueStorageObjectName}"
+            }
 
-            try {
-                supabaseClient.storage[BUCKET].upload(
-                    path = storagePath,
-                    data = fileData.bytes,
-                    options = { upsert = false }
-                )
+            val message = when {
+                successfulUploads == totalFiles && totalFiles > 0 -> "$successfulUploads file(s) uploaded successfully."
+                successfulUploads > 0 -> "$successfulUploads file(s) uploaded. $failedUploads failed."
+                failedUploads > 0 -> "All $failedUploads file upload(s) failed."
+                else -> "No files were processed." // Should not happen if filesData is not empty
+            }
 
-                val documentMetadata = Document(
-                    id = uuid4().toString(),
-                    folderId = targetFolderId, // Link document to its parent folder
-                    name = originalFileName,
-                    storageFilePath = storagePath,
-                    userId = currentUserId,
-                    mimeType = fileData.mimeType,
-                    createdAt = Clock.System.now().toString()
-                )
-                supabaseClient.postgrest[DOCUMENT].insert(documentMetadata)
-                _fileUploadUiState.value =
-                    FileUploadUiState.Success("File '${originalFileName}' uploaded.")
-                loadFolderContents(targetFolderId) // Refresh the folder where the file was uploaded
-            } catch (e: Exception) {
-                _fileUploadUiState.value = FileUploadUiState.Error("Upload failed: ${e.message}")
-                e.printStackTrace()
+            if (failedUploads > 0 && successfulUploads == 0) {
+                _fileUploadUiState.value = FileUploadUiState.Error(message)
+            } else {
+                _fileUploadUiState.value = FileUploadUiState.Success(message)
+            }
+            if (successfulUploads > 0) {
+                loadFolderContents(targetFolderId)
             }
         }
     }
+
 
     fun downloadAndOpenFile(document: Document) {
         viewModelScope.launch(Dispatchers.IO) {

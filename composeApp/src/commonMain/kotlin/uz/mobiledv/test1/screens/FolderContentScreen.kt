@@ -37,14 +37,22 @@ import uz.mobiledv.test1.model.Document
 import uz.mobiledv.test1.model.Folder
 import uz.mobiledv.test1.util.FileData
 import uz.mobiledv.test1.util.isValidEmail
-import uz.mobiledv.test1.util.rememberFilePickerLauncher
+// import uz.mobiledv.test1.util.rememberFilePickerLauncher // Old import
+import uz.mobiledv.test1.util.rememberMultipleFilesPickerLauncher // New import
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 // Helper for navigation arguments
-fun encodeNavArg(arg: String?): String = arg?.let { URLEncoder.encode(it, StandardCharsets.UTF_8.toString()) } ?: "null"
-fun decodeNavArg(arg: String?): String? = if (arg == "null") null else arg?.let { URLDecoder.decode(it, StandardCharsets.UTF_8.toString()) }
+fun encodeNavArg(arg: String?): String =
+    arg?.let { URLEncoder.encode(it, StandardCharsets.UTF_8.toString()) } ?: "null"
+
+fun decodeNavArg(arg: String?): String? = if (arg == "null") null else arg?.let {
+    URLDecoder.decode(
+        it,
+        StandardCharsets.UTF_8.toString()
+    )
+}
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,16 +82,17 @@ fun FolderContentsScreen(
     var showCreateUserDialog by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
 
-
-    val filePickerLauncher = rememberFilePickerLauncher { fileData ->
-        if (fileData != null && currentFolderId != null) { // Ensure we are inside a folder to upload
-            foldersViewModel.uploadFileToFolder(currentFolderId, fileData)
-        } else if (fileData == null) {
-            scope.launch { snackbarHostState.showSnackbar("File selection cancelled or invalid type.") }
-        } else if (currentFolderId == null) {
-            scope.launch { snackbarHostState.showSnackbar("Cannot upload files to the root. Please select a folder.") }
-        }
-    }
+    // Use the new multiple files picker launcher
+    val multipleFilesPickerLauncher =
+        rememberMultipleFilesPickerLauncher(onFilesPicked = { filesData ->
+            if (!filesData.isNullOrEmpty() && currentFolderId != null) {
+                foldersViewModel.uploadFilesToFolder(currentFolderId, filesData)
+            } else if (filesData.isNullOrEmpty() && currentFolderId != null) { // filesData is null or empty list
+                scope.launch { snackbarHostState.showSnackbar("File selection cancelled, no files chosen, or invalid type(s).") }
+            } else if (currentFolderId == null) {
+                scope.launch { snackbarHostState.showSnackbar("Cannot upload files to the root. Please select a folder.") }
+            }
+        })
 
     LaunchedEffect(currentFolderId, appViewModel.getCurrentUser()?.id) {
         foldersViewModel.loadFolderContents(currentFolderId)
@@ -94,13 +103,15 @@ fun FolderContentsScreen(
         when (val state = fileUploadState) {
             is FileUploadUiState.Success -> {
                 snackbarHostState.showSnackbar(state.message)
-                foldersViewModel.clearFileUploadStatus()
+                foldersViewModel.clearFileUploadStatus() // Important to reset the state
             }
+
             is FileUploadUiState.Error -> {
                 snackbarHostState.showSnackbar("Upload Error: ${state.message}")
-                foldersViewModel.clearFileUploadStatus()
+                foldersViewModel.clearFileUploadStatus() // Important to reset the state
             }
-            else -> Unit
+
+            else -> Unit // Idle or Loading
         }
     }
     LaunchedEffect(fileDownloadState) {
@@ -110,10 +121,12 @@ fun FolderContentsScreen(
                 // snackbarHostState.showSnackbar(state.message)
                 foldersViewModel.clearFileDownloadStatus()
             }
+
             is FileDownloadUiState.Error -> {
                 snackbarHostState.showSnackbar("Open Error: ${state.message}")
                 foldersViewModel.clearFileDownloadStatus()
             }
+
             else -> Unit
         }
     }
@@ -124,10 +137,12 @@ fun FolderContentsScreen(
                 snackbarHostState.showSnackbar(state.message)
                 foldersViewModel.clearFilePublicDownloadStatus()
             }
+
             is FilePublicDownloadUiState.Error -> {
                 snackbarHostState.showSnackbar("Download Error: ${state.message}")
                 foldersViewModel.clearFilePublicDownloadStatus()
             }
+
             else -> Unit
         }
     }
@@ -142,7 +157,10 @@ fun FolderContentsScreen(
         userCreationAlert?.let { message ->
             snackbarHostState.showSnackbar(message)
             appViewModel.operationAlert.value = null // Consume alert
-            if (message.startsWith("User") && (message.contains("created successfully") || message.contains("Error creating user"))) {
+            if (message.startsWith("User") && (message.contains("created successfully") || message.contains(
+                    "Error creating user"
+                ))
+            ) {
                 if (!message.contains("already exists", ignoreCase = true) &&
                     !message.contains("Invalid", ignoreCase = true) &&
                     !message.contains("Password", ignoreCase = true) &&
@@ -189,8 +207,8 @@ fun FolderContentsScreen(
                     }
                 }
                 if (isManager && currentFolderId != null) { // Upload File FAB only if inside a folder for managers
-                    FloatingActionButton(onClick = { filePickerLauncher() }) {
-                        Icon(Icons.Filled.CloudUpload, "Upload File")
+                    FloatingActionButton(onClick = { multipleFilesPickerLauncher() }) { // Use the new launcher
+                        Icon(Icons.Filled.CloudUpload, "Upload File(s)")
                     }
                 }
             }
@@ -215,6 +233,7 @@ fun FolderContentsScreen(
                         Text("Loading...")
                     }
                 }
+
                 is FolderContentUiState.Success -> {
                     val combinedItems = state.subFolders + state.documents
                     if (combinedItems.isEmpty()) {
@@ -223,7 +242,11 @@ fun FolderContentsScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Icon(Icons.Filled.Folder, "Empty folder", modifier = Modifier.size(48.dp))
+                            Icon(
+                                Icons.Filled.Folder,
+                                "Empty folder",
+                                modifier = Modifier.size(48.dp)
+                            )
                             Spacer(Modifier.height(8.dp))
                             Text(if (isManager) "This folder is empty. Add a subfolder or upload files." else "This folder is empty.")
                         }
@@ -245,11 +268,22 @@ fun FolderContentsScreen(
                                         folder = item,
                                         isManager = isManager,
                                         onClick = {
-                                            navController.navigate("folderContents/${encodeNavArg(item.id)}/${encodeNavArg(item.name)}")
+                                            navController.navigate(
+                                                "folderContents/${
+                                                    encodeNavArg(
+                                                        item.id
+                                                    )
+                                                }/${encodeNavArg(item.name)}"
+                                            )
                                         },
-                                        onEditClick = { if (isManager) showEditFolderDialog = item },
-                                        onDeleteClick = { if (isManager) showDeleteFolderDialog = item }
+                                        onEditClick = {
+                                            if (isManager) showEditFolderDialog = item
+                                        },
+                                        onDeleteClick = {
+                                            if (isManager) showDeleteFolderDialog = item
+                                        }
                                     )
+
                                     is Document -> DocumentItem(
                                         document = item,
                                         isManager = isManager,
@@ -260,13 +294,18 @@ fun FolderContentsScreen(
                                                 foldersViewModel.deleteDocument(item) // Assuming deleteDocument is in ViewModel
                                             }
                                         },
-                                        onDownloadToPublicClick = { foldersViewModel.downloadAndSaveToPublicDownloads(item) }
+                                        onDownloadToPublicClick = {
+                                            foldersViewModel.downloadAndSaveToPublicDownloads(
+                                                item
+                                            )
+                                        }
                                     )
                                 }
                             }
                         }
                     }
                 }
+
                 is FolderContentUiState.Error -> {
                     Column(
                         modifier = Modifier.fillMaxSize(),
@@ -280,6 +319,7 @@ fun FolderContentsScreen(
                         }
                     }
                 }
+
                 is FolderContentUiState.Idle -> {
                     Column(
                         modifier = Modifier.fillMaxSize(),
@@ -293,15 +333,22 @@ fun FolderContentsScreen(
             // General loading overlay for uploads/downloads (optional, can rely on pull-to-refresh indicator too)
             if (fileUploadState is FileUploadUiState.Loading ||
                 fileDownloadState is FileDownloadUiState.Loading || fileDownloadState is FileDownloadUiState.Downloading ||
-                filePublicDownloadState is FilePublicDownloadUiState.Downloading) {
-                Box(modifier = Modifier.fillMaxSize().align(Alignment.Center), contentAlignment = Alignment.Center) {
+                filePublicDownloadState is FilePublicDownloadUiState.Downloading
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize().align(Alignment.Center),
+                    contentAlignment = Alignment.Center
+                ) {
                     Surface(
                         modifier = Modifier.padding(32.dp),
                         shape = MaterialTheme.shapes.medium,
                         tonalElevation = 8.dp,
                         shadowElevation = 8.dp
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(16.dp)
+                        ) {
                             CircularProgressIndicator()
                             Spacer(Modifier.height(8.dp))
                             Text(
@@ -337,7 +384,12 @@ fun FolderContentsScreen(
                 title = "Edit Folder",
                 onDismiss = { showEditFolderDialog = null },
                 onConfirm = { name, description ->
-                    foldersViewModel.updateFolder(folderToEdit.id, name, description, folderToEdit.parentId)
+                    foldersViewModel.updateFolder(
+                        folderToEdit.id,
+                        name,
+                        description,
+                        folderToEdit.parentId
+                    )
                     showEditFolderDialog = null
                 }
             )
@@ -352,7 +404,10 @@ fun FolderContentsScreen(
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            foldersViewModel.deleteFolder(folderToDelete.id, folderToDelete.parentId)
+                            foldersViewModel.deleteFolder(
+                                folderToDelete.id,
+                                folderToDelete.parentId
+                            )
                             showDeleteFolderDialog = null
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
@@ -401,9 +456,20 @@ fun FolderListItem(
             )
             Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(folder.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    folder.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 if (folder.description.isNotBlank()) {
-                    Text(folder.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        folder.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
             if (isManager) {
@@ -412,7 +478,11 @@ fun FolderListItem(
                     Icon(Icons.Filled.Edit, "Edit Folder")
                 }
                 IconButton(onClick = onDeleteClick, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Filled.Delete, "Delete Folder", tint = MaterialTheme.colorScheme.error)
+                    Icon(
+                        Icons.Filled.Delete,
+                        "Delete Folder",
+                        tint = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         }
@@ -429,7 +499,11 @@ private fun FolderEditDialog(
     onConfirm: (name: String, description: String) -> Unit
 ) {
     var name by remember(existingFolder) { mutableStateOf(existingFolder?.name ?: "") }
-    var description by remember(existingFolder) { mutableStateOf(existingFolder?.description ?: "") }
+    var description by remember(existingFolder) {
+        mutableStateOf(
+            existingFolder?.description ?: ""
+        )
+    }
     var nameError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
@@ -448,7 +522,13 @@ private fun FolderEditDialog(
                     isError = nameError != null,
                     singleLine = true
                 )
-                nameError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
+                nameError?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = description,
@@ -503,7 +583,13 @@ private fun CreateUserDialog( // Copied from original FoldersScreen, can be move
                     isError = usernameError != null,
                     singleLine = true
                 )
-                usernameError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
+                usernameError?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
@@ -517,13 +603,20 @@ private fun CreateUserDialog( // Copied from original FoldersScreen, can be move
                     isError = emailError != null,
                     singleLine = true
                 )
-                emailError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
+                emailError?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = password,
                     onValueChange = {
                         password = it
-                        passwordError = if (it.length >= 6) null else "Password must be at least 6 characters."
+                        passwordError =
+                            if (it.length >= 6) null else "Password must be at least 6 characters."
                     },
                     label = { Text("Password*") },
                     modifier = Modifier.fillMaxWidth(),
@@ -531,13 +624,23 @@ private fun CreateUserDialog( // Copied from original FoldersScreen, can be move
                     singleLine = true,
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
-                        val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                        val image =
+                            if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(imageVector = image, if (passwordVisible) "Hide password" else "Show password")
+                            Icon(
+                                imageVector = image,
+                                if (passwordVisible) "Hide password" else "Show password"
+                            )
                         }
                     }
                 )
-                passwordError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
+                passwordError?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
             }
         },
         confirmButton = {
@@ -549,7 +652,8 @@ private fun CreateUserDialog( // Copied from original FoldersScreen, can be move
 
                     usernameError = if (isUsernameValid) null else "Username cannot be empty."
                     emailError = if (isEmailCurrentlyValid) null else "Invalid email format."
-                    passwordError = if (isPasswordCurrentlyValid) null else "Password must be at least 6 characters."
+                    passwordError =
+                        if (isPasswordCurrentlyValid) null else "Password must be at least 6 characters."
 
                     if (isUsernameValid && isEmailCurrentlyValid && isPasswordCurrentlyValid) {
                         onConfirm(username.trim(), email.trim(), password)
