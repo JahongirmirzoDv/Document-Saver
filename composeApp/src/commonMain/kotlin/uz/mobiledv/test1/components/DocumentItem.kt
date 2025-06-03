@@ -11,14 +11,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Article // Default document icon
+import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Description // Alternative for generic documents
-import androidx.compose.material.icons.filled.Download // Import Download icon
-import androidx.compose.material.icons.filled.Image // For common image types
-import androidx.compose.material.icons.filled.Movie // For video
-import androidx.compose.material.icons.filled.MusicNote // For audio
-import androidx.compose.material.icons.filled.PictureAsPdf // For PDF
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -28,12 +28,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import uz.mobiledv.test1.model.Document // Your Document model
+import uz.mobiledv.test1.model.Document
 
 @Composable
 fun DocumentItem(
@@ -52,10 +50,22 @@ fun DocumentItem(
         type == "video" -> Icons.Filled.Movie
         type == "audio" -> Icons.Filled.MusicNote
         mimeType?.contains("word") == true -> Icons.Filled.Description // Word document
-        mimeType?.contains("excel") == true || mimeType?.contains("spreadsheet") == true -> Icons.Filled.Article // Excel
-        else -> Icons.Filled.Article // Generic icon
+        mimeType?.contains("excel") == true || mimeType?.contains("spreadsheet") == true -> Icons.AutoMirrored.Filled.Article // Excel
+        else -> Icons.AutoMirrored.Filled.Article // Generic icon
     }
 
+    val fileType = when {
+        mimeType?.contains("word") == true -> "Word Document"
+        mimeType?.contains("excel") == true || mimeType?.contains("spreadsheet") == true -> "Excel Document"
+        mimeType == "application/pdf" -> "PDF Document"
+        type == "image" -> "Image"
+        type == "video" -> "Video"
+        type == "audio" -> "Audio"
+        else -> {
+            // Fallback to generic description if no specific type matches
+            "Document"
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -94,7 +104,7 @@ fun DocumentItem(
                     )
 
                     val details = mutableListOf<String>()
-                    document.mimeType?.let { details.add(it) }
+                    fileType.let { details.add(it) }
                     document.createdAt?.let {
                         details.add("Added: ${it.take(10)}")
                     }

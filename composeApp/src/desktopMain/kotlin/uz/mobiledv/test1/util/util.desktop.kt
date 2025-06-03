@@ -6,63 +6,79 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.awt.FileDialog // Import FileDialog
 import java.awt.Frame
-import javax.swing.JFileChooser
-import javax.swing.SwingUtilities
-import javax.swing.filechooser.FileNameExtensionFilter
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
+import java.io.File
+import java.io.FilenameFilter // Import FilenameFilter
+import javax.swing.SwingUtilities // Keep for EDT operations if complex setup needed, though FileDialog is simpler
+
+// Helper function to get the parent Frame, needed for FileDialog
+private fun getParentFrame(): Frame? {
+    // Attempt to find an active Frame. This might need to be more robust
+    // depending on your application's window management.
+    // If your app always has a main window that's a Frame, you can pass it directly.
+    return Frame.getFrames().firstOrNull { it.isActive }
+}
+
+// Helper to convert MIME types to filename extensions for FilenameFilter
+private fun createFilenameFilter(allowedTypes: List<String>): FilenameFilter? {
+    if (allowedTypes.isEmpty() || allowedTypes.contains("*/*")) {
+        return null // Accept all files
+    }
+
+    val extensions = allowedTypes.mapNotNull { type ->
+        when (type) {
+            "application/pdf" -> ".pdf"
+            "image/png" -> ".png"
+            "image/jpeg" -> ".jpeg" // Handle multiple common extensions
+            "application/msword" -> ".doc"
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> ".docx"
+            "application/vnd.ms-excel" -> ".xls"
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> ".xlsx"
+            // Add more MIME type to extension mappings as needed
+            else -> {
+                val parts = type.split("/")
+                parts.getOrNull(1)?.let { ".$it" } // Fallback to subtype as extension
+            }
+        }
+    }.flatMap { ext -> if (ext.contains(",")) ext.split(",").map { it.trim() } else listOf(ext) }
+        .map { it.lowercase() }
+        .toSet()
+
+    if (extensions.isEmpty()) return null
+
+    return FilenameFilter { dir, name ->
+        extensions.any { name.lowercase().endsWith(it) }
+    }
+}
+
 
 actual class FilePicker {
 
-    private fun configureFileChooser(fileChooser: JFileChooser, allowedTypes: List<String>) {
-        if (allowedTypes.isNotEmpty() && !(allowedTypes.size == 1 && allowedTypes[0] == "*/*")) {
-            val filters = allowedTypes.mapNotNull { type ->
-                val parts = type.split("/")
-                val generalType = parts.getOrNull(0)
-                val specificType = parts.getOrNull(1)
+    private fun processFileDialogResult(dialog: FileDialog, allowedMimeTypesConfig: List<String>): List<FileData>? {
+        val files = dialog.files // For multiple selections
+        if (files.isEmpty()) return null
 
-                val extension: String = when (type) {
-                    "application/pdf" -> "pdf"
-                    "image/png" -> "png"
-                    "image/jpeg" -> "jpeg"
-                    "application/msword" -> "doc"
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> "docx"
-                    "application/vnd.ms-excel" -> "xls"
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> "xlsx"
-                    else -> specificType?.substringAfterLast('.') ?: specificType ?: generalType ?: ""
-                }
-                if (extension.isNotBlank() && extension != "*") {
-                    val description = "${specificType?.replaceFirstChar { it.titlecase() } ?: generalType?.replaceFirstChar { it.titlecase() } ?: "Files"} (*.$extension)"
-                    val extensionsToFilter = when (type) {
-                        "image/jpeg" -> arrayOf("jpeg", "jpg")
-                        else -> arrayOf(extension.lowercase())
-                    }
-                    FileNameExtensionFilter(description, *extensionsToFilter)
-                } else {
-                    null
-                }
-            }.toTypedArray()
-
-            if (filters.isNotEmpty()) {
-                fileChooser.isAcceptAllFileFilterUsed = true // Keep "All Files" option
-                filters.forEach { fileChooser.addChoosableFileFilter(it) }
-                fileChooser.fileFilter = filters[0] // Set the first filter as default
-            } else {
-                fileChooser.isAcceptAllFileFilterUsed = true
-            }
-        } else {
-            fileChooser.isAcceptAllFileFilterUsed = true
-        }
+        return files.mapNotNull { file ->
+            // FileDialog returns File objects directly, already in the correct directory
+            validateAndReadFile(file, allowedMimeTypesConfig)
+        }.ifEmpty { null }
     }
 
-    private fun validateFile(file: java.io.File, allowedMimeTypesConfig: List<String>): FileData? {
+    private fun validateAndReadFile(file: File, allowedMimeTypesConfig: List<String>): FileData? {
+        // Basic validation based on extension if needed, FileDialog's filter does most of it.
+        // However, a more robust MIME type check after selection is good.
         val probedMimeType = java.nio.file.Files.probeContentType(file.toPath()) ?: "application/octet-stream"
 
         val isMimeTypeAllowed = if (allowedMimeTypesConfig.contains("*/*") || allowedMimeTypesConfig.isEmpty()) {
             true
         } else {
-            allowedMimeTypesConfig.contains(probedMimeType)
+            // Check if probedMimeType matches any of the configured general types or specific types
+            // This part might need refinement if probedMimeType (e.g. "image/jpeg")
+            // needs to be matched against a less specific entry in allowedMimeTypesConfig (e.g. "image/*")
+            // For now, direct match or wildcard.
+            allowedMimeTypesConfig.contains(probedMimeType) ||
+                    allowedMimeTypesConfig.any { it.endsWith("/*") && probedMimeType.startsWith(it.dropLast(1)) }
         }
 
         return if (isMimeTypeAllowed) {
@@ -74,46 +90,39 @@ actual class FilePicker {
                 null
             }
         } else {
-            println("Invalid file type selected on desktop: $probedMimeType (File: ${file.name}). Allowed: ${allowedMimeTypesConfig.joinToString()}")
+            println("Invalid file type selected on desktop (post-selection check): $probedMimeType (File: ${file.name}). Allowed: ${allowedMimeTypesConfig.joinToString()}")
             null
         }
     }
 
-    actual suspend fun pickSingleFile(allowedTypes: List<String>): FileData? = suspendCoroutine { continuation ->
-        SwingUtilities.invokeLater {
-            val fileChooser = JFileChooser()
-            fileChooser.isMultiSelectionEnabled = false
-            configureFileChooser(fileChooser, allowedTypes)
 
-            val parentWindow = Frame.getFrames().firstOrNull { it.isActive }
-            val result = fileChooser.showOpenDialog(parentWindow)
+    actual suspend fun pickSingleFile(allowedTypes: List<String>): FileData? = withContext(Dispatchers.IO) {
+        var fileData: FileData? = null
+        SwingUtilities.invokeAndWait {
+            val dialog = FileDialog(getParentFrame(), "Select File", FileDialog.LOAD)
+            dialog.filenameFilter = createFilenameFilter(allowedTypes)
+            dialog.isMultipleMode = false
+            dialog.isVisible = true
 
-            if (result == JFileChooser.APPROVE_OPTION) {
-                val file = fileChooser.selectedFile
-                continuation.resume(validateFile(file, allowedTypes))
-            } else {
-                continuation.resume(null)
+            if (dialog.file != null && dialog.directory != null) {
+                val selectedFile = File(dialog.directory, dialog.file)
+                fileData = validateAndReadFile(selectedFile, allowedTypes)
             }
         }
+        fileData
     }
 
-    actual suspend fun pickMultipleFiles(allowedTypes: List<String>): List<FileData>? = suspendCoroutine { continuation ->
-        SwingUtilities.invokeLater {
-            val fileChooser = JFileChooser()
-            fileChooser.isMultiSelectionEnabled = true
-            configureFileChooser(fileChooser, allowedTypes)
+    actual suspend fun pickMultipleFiles(allowedTypes: List<String>): List<FileData>? = withContext(Dispatchers.IO) {
+        var fileDataList: List<FileData>? = null
+        SwingUtilities.invokeAndWait {
+            val dialog = FileDialog(getParentFrame(), "Select Files", FileDialog.LOAD)
+            dialog.filenameFilter = createFilenameFilter(allowedTypes)
+            dialog.isMultipleMode = true // Enable multiple file selection
+            dialog.isVisible = true
 
-            val parentWindow = Frame.getFrames().firstOrNull { it.isActive }
-            val result = fileChooser.showOpenDialog(parentWindow)
-
-            if (result == JFileChooser.APPROVE_OPTION) {
-                val files = fileChooser.selectedFiles
-                val fileDataList = files.mapNotNull { validateFile(it, allowedTypes) }
-                continuation.resume(fileDataList.ifEmpty { null })
-            } else {
-                continuation.resume(null)
-            }
+            fileDataList = processFileDialogResult(dialog, allowedTypes)
         }
+        fileDataList
     }
 }
 
@@ -122,15 +131,13 @@ actual fun rememberSingleFilePickerLauncher(
     onFilePicked: (FileData?) -> Unit,
     allowedTypes: List<String>
 ): () -> Unit {
-    val filePicker = remember { FilePicker() }
     val scope = rememberCoroutineScope()
+    val filePicker = remember { FilePicker() } // Instantiate your FilePicker
 
     return {
-        scope.launch(Dispatchers.IO) { // Perform file picking on IO dispatcher
+        scope.launch { // No need for Dispatchers.IO here if FilePicker methods are suspend and use withContext
             val fileData = filePicker.pickSingleFile(allowedTypes)
-            withContext(Dispatchers.Main) { // Switch back to Main for UI update
-                onFilePicked(fileData)
-            }
+            onFilePicked(fileData) // Already on Main dispatcher if pickSingleFile uses withContext(Dispatchers.Main) for callback
         }
     }
 }
@@ -140,15 +147,13 @@ actual fun rememberMultipleFilesPickerLauncher(
     onFilesPicked: (List<FileData>?) -> Unit,
     allowedTypes: List<String>
 ): () -> Unit {
-    val filePicker = remember { FilePicker() }
     val scope = rememberCoroutineScope()
+    val filePicker = remember { FilePicker() }
 
     return {
-        scope.launch(Dispatchers.IO) { // Perform file picking on IO dispatcher
+        scope.launch {
             val fileDataList = filePicker.pickMultipleFiles(allowedTypes)
-            withContext(Dispatchers.Main) { // Switch back to Main for UI update
-                onFilesPicked(fileDataList)
-            }
+            onFilesPicked(fileDataList)
         }
     }
 }
