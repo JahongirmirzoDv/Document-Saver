@@ -33,5 +33,13 @@ actual fun createPlatformSpecificHttpClient(): HttpClient {
         install(Logging) {
             level = LogLevel.ALL
         }
+
+        engine {
+            requestTimeout = 60000 // Timeout for the entire request in milliseconds
+            // endpointConfig { // For more granular CIO timeouts if needed
+            //     connectTimeout = 20000
+            //     socketTimeout = 60000
+            // }
+        }
     }
 }

@@ -23,13 +23,38 @@ fun isValidEmail(email: String): Boolean {
 // Data class to hold file information
 data class FileData(val name: String, val bytes: ByteArray, val mimeType: String?)
 
-// Expect declaration for the file picker
+// Expect declaration for the file picker class
 expect class FilePicker {
-    suspend fun pickFile(allowedTypes: List<String> = listOf("*/*")): FileData?
+    suspend fun pickSingleFile(allowedTypes: List<String> = listOf("*/*")): FileData?
+    suspend fun pickMultipleFiles(allowedTypes: List<String> = listOf("*/*")): List<FileData>?
 }
 
-// You might also provide a Composable way to launch it
+// Expect declaration for composable single file picker launcher
 @Composable
-expect fun rememberFilePickerLauncher(
-    onFilePicked: (FileData?) -> Unit
+expect fun rememberSingleFilePickerLauncher(
+    onFilePicked: (FileData?) -> Unit,
+    allowedTypes: List<String> = listOf(
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "application/msword", // .doc
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+        "application/vnd.ms-excel", // .xls
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" // .xlsx
+    )
+): () -> Unit
+
+// Expect declaration for composable multiple files picker launcher
+@Composable
+expect fun rememberMultipleFilesPickerLauncher(
+    onFilesPicked: (List<FileData>?) -> Unit,
+    allowedTypes: List<String> = listOf(
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "application/msword", // .doc
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+        "application/vnd.ms-excel", // .xls
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" // .xlsx
+    )
 ): () -> Unit

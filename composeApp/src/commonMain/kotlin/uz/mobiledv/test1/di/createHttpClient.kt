@@ -20,4 +20,5 @@ object KtorClientInstance {
     val httpClient: HttpClient by lazy {
         createPlatformSpecificHttpClient()
     }
+
 }
