@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text // Keep Material3 Text
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,138 +18,104 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
-import uz.mobiledv.test1.components.UpdateChecker
-import uz.mobiledv.test1.screens.FolderDetailScreen
-import uz.mobiledv.test1.screens.FoldersScreen
+// import uz.mobiledv.test1.components.UpdateChecker // If you have this component
+import uz.mobiledv.test1.screens.FolderContentsScreen // Import the new screen
 import uz.mobiledv.test1.screens.LoginScreen
+import uz.mobiledv.test1.screens.decodeNavArg
+import uz.mobiledv.test1.screens.encodeNavArg
 import uz.mobiledv.test1.ui.AppTheme
-import java.net.URLDecoder
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 
 @Composable
 @Preview
 fun App() {
-    val viewModel: AppViewModel = koinViewModel()
+    val appViewModel: AppViewModel = koinViewModel()
 
-    // Apply the AppTheme at the root of your application
     AppTheme {
         val navController = rememberNavController()
-        val customSessionStatus by viewModel.customSessionStatus.collectAsStateWithLifecycle()
+        val customSessionStatus by appViewModel.customSessionStatus.collectAsStateWithLifecycle()
 
-        //UpdateChecker() // Add the UpdateChecker
-
-        val startDestination by remember(customSessionStatus) {
-            derivedStateOf {
-                when (customSessionStatus) {
-                    is CustomSessionStatus.Authenticated -> "folders"
-                    is CustomSessionStatus.NotAuthenticated -> "login"
-                    is CustomSessionStatus.Initializing -> "loading"
-                }
-            }
-        }
-
-        LaunchedEffect(customSessionStatus, startDestination) {
-            val currentRoute = navController.currentDestination?.route
-            if (startDestination == "loading" && customSessionStatus is CustomSessionStatus.Initializing) {
-                if (currentRoute != "loading") {
-                    // navController.navigate("loading") {
-                    // popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                    // launchSingleTop = true
-                    // }
-                }
-            } else if (customSessionStatus is CustomSessionStatus.Authenticated) {
-                if (currentRoute != "folders" && !currentRoute.orEmpty().startsWith("folderDetail")) {
-                    navController.navigate("folders") {
-                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                }
-            } else if (customSessionStatus is CustomSessionStatus.NotAuthenticated) {
-                if (currentRoute != "login") {
-                    navController.navigate("login") {
-                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                }
-            }
-        }
-
-        if (startDestination == "loading" && customSessionStatus is CustomSessionStatus.Initializing) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                CircularProgressIndicator()
-                Text("Initializing session...", style = MaterialTheme.typography.bodyLarge) // Use M3 Typography
-            }
-        } else {
-            NavHost(
-                navController,
-                startDestination = startDestination
-            ) {
-                composable("loading") {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator()
-                            Text("Please wait...", style = MaterialTheme.typography.bodyLarge) // Use M3 Typography
+        LaunchedEffect(customSessionStatus, navController) {
+            when (customSessionStatus) {
+                is CustomSessionStatus.Authenticated -> {
+                    val currentRoute = navController.currentDestination?.route
+                    if (currentRoute?.startsWith("folderContents") != true) {
+                        navController.navigate("folderContents/${encodeNavArg(null)}/${encodeNavArg(null)}") {
+                            popUpTo(0) { inclusive = true }
+                            launchSingleTop = true
                         }
                     }
                 }
-                composable("login") {
-                    LoginScreen(
-                        onLoginSuccess = {
-                            // Navigation handled by LaunchedEffect
-                        },
-                        appViewModel = viewModel
-                    )
+                is CustomSessionStatus.NotAuthenticated -> {
+                    val currentRoute = navController.currentDestination?.route
+                    if (currentRoute != "login") {
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
                 }
-                composable("folders") {
-                    FoldersScreen(
-                        appViewModel = viewModel,
-                        onFolderClick = { folder ->
-                            val encodedFolderName = try {
-                                URLEncoder.encode(folder.name, StandardCharsets.UTF_8.toString())
-                            } catch (e: Exception) {
-                                // Fallback or error handling if encoding fails, though unlikely with UTF-8
-                                folder.name // Or some default/error placeholder
-                            }
-                            navController.navigate("folderDetail/${folder.id}/$encodedFolderName")
-                        },
-                        onLogout = {
-                            viewModel.logout()
-                        },
-                        navController = navController
-                    )
+                is CustomSessionStatus.Initializing -> {
+                    // UI shows loading state
                 }
-                composable(
-                    route = "folderDetail/{folderId}/{folderName}",
-                    arguments = listOf(
-                        navArgument("folderId") { type = NavType.StringType },
-                        navArgument("folderName") { type = NavType.StringType }
-                    )
-                ) { backStackEntry ->
-                    val folderId = backStackEntry.arguments?.getString("folderId")
-//                    val folderName = backStackEntry.arguments?.getString("folderName")
-                    val encodedFolderNameFromArgs = backStackEntry.arguments?.getString("folderName")
+            }
+        }
 
+        when (customSessionStatus) {
+            is CustomSessionStatus.Initializing -> {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator()
+                    Text("Initializing session...", style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+            is CustomSessionStatus.Authenticated, is CustomSessionStatus.NotAuthenticated -> {
+                val startDestination = when (customSessionStatus) {
+                    is CustomSessionStatus.Authenticated -> "folderContents/${encodeNavArg(null)}/${encodeNavArg(null)}"
+                    is CustomSessionStatus.NotAuthenticated -> "login"
+                    else -> "login" // Fallback for safety, though Initializing is handled
+                }
 
-                    val folderName = try {
-                        encodedFolderNameFromArgs?.let { URLDecoder.decode(it, StandardCharsets.UTF_8.toString()) }
-                    } catch (e: Exception) {
-                        // Fallback or error handling if decoding fails
-                        encodedFolderNameFromArgs // Or some default/error placeholder
+                NavHost(
+                    navController = navController,
+                    startDestination = startDestination
+                ) {
+                    composable("login") {
+                        LoginScreen(
+                            onLoginSuccess = { /* Auth status change triggers LaunchedEffect */ },
+                            appViewModel = appViewModel
+                        )
                     }
 
-                    if (folderId != null && folderName != null) {
-                        FolderDetailScreen(
-                            folderId = folderId,
-                            folderName = folderName,
-                            onNavigateBack = { navController.popBackStack() }
+                    composable(
+                        route = "folderContents/{encodedFolderId}/{encodedFolderName}",
+                        arguments = listOf(
+                            navArgument("encodedFolderId") {
+                                type = NavType.StringType
+                                nullable = true // Allow null from NavComponent's perspective
+                            },
+                            navArgument("encodedFolderName") {
+                                type = NavType.StringType
+                                nullable = true // Allow null from NavComponent's perspective
+                            }
                         )
-                    } else {
-                        navController.popBackStack()
+                    ) { backStackEntry ->
+                        // getString can return null if the argument is not present or if it's explicitly null.
+                        // Our path always provides a string ("value" or "null").
+                        val encodedFolderIdFromArgs = backStackEntry.arguments?.getString("encodedFolderId")
+                        val encodedFolderNameFromArgs = backStackEntry.arguments?.getString("encodedFolderName")
+
+                        val folderId = decodeNavArg(encodedFolderIdFromArgs) // Handles "null" string to String?
+                        val folderName = decodeNavArg(encodedFolderNameFromArgs) // Handles "null" string to String?
+
+                        FolderContentsScreen(
+                            navController = navController,
+                            currentFolderId = folderId,
+                            currentFolderName = folderName,
+                            appViewModel = appViewModel
+                        )
                     }
                 }
             }

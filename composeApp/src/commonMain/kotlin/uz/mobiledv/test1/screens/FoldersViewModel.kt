@@ -1,4 +1,3 @@
-// File: jahongirmirzodv/test.1.2/Test.1.2-fcc101c924a3dcb58258c4f63c298289470731ad/composeApp/src/commonMain/kotlin/uz/mobiledv/test1/screens/FoldersViewModel.kt
 package uz.mobiledv.test1.screens
 
 import androidx.lifecycle.ViewModel
@@ -6,8 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.benasher44.uuid.uuid4
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,8 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
-// Removed unused kotlinx.datetime imports for LocalDateTime, TimeZone, toInstant
-import uz.mobiledv.test1.data.AuthSettings // AuthSettings for user context
+import uz.mobiledv.test1.data.AuthSettings
 import uz.mobiledv.test1.di.BUCKET
 import uz.mobiledv.test1.di.DOCUMENT
 import uz.mobiledv.test1.di.FOLDER
@@ -25,20 +23,16 @@ import uz.mobiledv.test1.model.Folder
 import uz.mobiledv.test1.util.FileData
 import uz.mobiledv.test1.util.FileSaver
 import uz.mobiledv.test1.util.openFile
+import java.util.Objects.isNull
 
+// --- UI States ---
+sealed class FolderContentUiState {
+    data object Idle : FolderContentUiState()
+    data object Loading : FolderContentUiState()
+    data class Success(val subFolders: List<Folder>, val documents: List<Document>) :
+        FolderContentUiState()
 
-sealed class FoldersUiState {
-    data object Idle : FoldersUiState()
-    data object Loading : FoldersUiState()
-    data class Success(val folders: List<Folder>) : FoldersUiState()
-    data class Error(val message: String) : FoldersUiState()
-}
-
-sealed class FolderDocumentsUiState {
-    data object Idle : FolderDocumentsUiState()
-    data object Loading : FolderDocumentsUiState()
-    data class Success(val documents: List<Document>) : FolderDocumentsUiState()
-    data class Error(val message: String) : FolderDocumentsUiState()
+    data class Error(val message: String) : FolderContentUiState()
 }
 
 sealed class FileUploadUiState {
@@ -48,112 +42,139 @@ sealed class FileUploadUiState {
     data class Error(val message: String) : FileUploadUiState()
 }
 
-// Existing state for downloading to cache and opening
-sealed class FileDownloadUiState {
+sealed class FileDownloadUiState { // For cache/open
     data object Idle : FileDownloadUiState()
-    data object Loading : FileDownloadUiState() // General loading state
-    data class Downloading(val fileName: String, val progress: Float) : FileDownloadUiState() // Progress state
-    data class Success(val fileName: String, val message: String, val localPath: String, val mimeType: String?) : FileDownloadUiState()
+    data object Loading : FileDownloadUiState()
+    data class Downloading(val fileName: String, val progress: Float) : FileDownloadUiState()
+    data class Success(
+        val fileName: String,
+        val message: String,
+        val localPath: String,
+        val mimeType: String?
+    ) : FileDownloadUiState()
+
     data class Error(val message: String) : FileDownloadUiState()
 }
 
-// New state for downloading to public "Downloads" folder
-sealed class FilePublicDownloadUiState {
+sealed class FilePublicDownloadUiState { // For public "Downloads"
     data object Idle : FilePublicDownloadUiState()
     data class Downloading(val fileName: String, val progress: Float) : FilePublicDownloadUiState()
-    data class Success(val fileName: String, val message: String, val publicPath: String?) : FilePublicDownloadUiState()
+    data class Success(val fileName: String, val message: String, val publicPath: String?) :
+        FilePublicDownloadUiState()
+
     data class Error(val message: String) : FilePublicDownloadUiState()
 }
-
 
 class FoldersViewModel(
     private val supabaseClient: SupabaseClient,
     private val fileSaver: FileSaver,
-    private val authSettings: AuthSettings // Injected AuthSettings
+    private val authSettings: AuthSettings
 ) : ViewModel() {
 
-    private val _foldersUiState = MutableStateFlow<FoldersUiState>(FoldersUiState.Idle)
-    val foldersUiState: StateFlow<FoldersUiState> = _foldersUiState.asStateFlow()
-
-    private val _folderDocumentsUiState =
-        MutableStateFlow<FolderDocumentsUiState>(FolderDocumentsUiState.Idle)
-    val folderDocumentsUiState: StateFlow<FolderDocumentsUiState> =
-        _folderDocumentsUiState.asStateFlow()
+    private val _folderContentUiState =
+        MutableStateFlow<FolderContentUiState>(FolderContentUiState.Idle)
+    val folderContentUiState: StateFlow<FolderContentUiState> = _folderContentUiState.asStateFlow()
 
     private val _fileUploadUiState = MutableStateFlow<FileUploadUiState>(FileUploadUiState.Idle)
     val fileUploadUiState: StateFlow<FileUploadUiState> = _fileUploadUiState.asStateFlow()
 
-    private val _operationStatus = MutableStateFlow<String?>(null)
+    private val _operationStatus =
+        MutableStateFlow<String?>(null) // For general messages (create, update, delete folder)
     val operationStatus: StateFlow<String?> = _operationStatus.asStateFlow()
 
-    private val _fileDownloadUiState = // For opening/viewing (downloads to cache)
+    private val _fileDownloadUiState =
         MutableStateFlow<FileDownloadUiState>(FileDownloadUiState.Idle)
-    val fileDownloadUiState: StateFlow<FileDownloadUiState> =
-        _fileDownloadUiState.asStateFlow()
+    val fileDownloadUiState: StateFlow<FileDownloadUiState> = _fileDownloadUiState.asStateFlow()
 
-    // New State Flow for public downloads
     private val _filePublicDownloadUiState =
         MutableStateFlow<FilePublicDownloadUiState>(FilePublicDownloadUiState.Idle)
     val filePublicDownloadUiState: StateFlow<FilePublicDownloadUiState> =
         _filePublicDownloadUiState.asStateFlow()
 
+    private fun getCurrentUserId(): String? = authSettings.getCurrentUser()?.id
+    private fun isCurrentUserAdmin(): Boolean = authSettings.getCurrentUser()?.isAdmin == true
 
-    init {
-        if (authSettings.getCurrentUser() != null) {
-            loadFolders()
-        }
-    }
+// In FoldersViewModel.kt
 
-    private fun getCurrentUserId(): String? {
-        return authSettings.getCurrentUser()?.id
-    }
-
-    private fun isCurrentUserAdmin(): Boolean {
-        return authSettings.getCurrentUser()?.isAdmin == true
-    }
-
-
-    fun loadFolders() {
+    fun loadFolderContents(parentId: String?) { // parentId is the ID of the folder whose contents we want to load
         viewModelScope.launch(Dispatchers.IO) {
-            _foldersUiState.value = FoldersUiState.Loading
-            if (getCurrentUserId() == null) { // Check custom auth status
-                _foldersUiState.value =
-                    FoldersUiState.Error("User not authenticated to load folders.")
+            _folderContentUiState.value = FolderContentUiState.Loading
+            val currentUserId = getCurrentUserId() ?: run {
+                _folderContentUiState.value = FolderContentUiState.Error("User not authenticated.")
                 return@launch
             }
 
             try {
-                val postgrestResponse =
-                    supabaseClient.postgrest[FOLDER].select(columns = Columns.ALL) {
-                        order("name", Order.ASCENDING)
+                // Fetch subfolders for the given parentId
+                val subFolders = supabaseClient.postgrest[FOLDER].select {
+                    filter {
+                        if (parentId == null) {
+                            // For root folders, parent_id should be explicitly NULL
+                            // Using FilterOperator.IS for clarity with null values
+//                            exact("parent_id", false)
+                            filter("parent_id", FilterOperator.IS,"null")
+//                            eq("parent_id", FilterOperator.IS, "null")
+                        } else {
+                            // For subfolders, parent_id should match the given parentId
+                            eq("parent_id", parentId)
+                        }
+                        // Optional: If root folders are also user-specific
+                        // if (parentId == null && !isCurrentUserAdmin()) {
+                        //     eq("user_id", currentUserId)
+                        // }
                     }
-                val folders = postgrestResponse.decodeList<Folder>()
-                _foldersUiState.value = FoldersUiState.Success(folders)
+                    order("name", Order.ASCENDING)
+                }.decodeList<Folder>()
+
+                // Fetch documents in the current folder (only if inside a folder, not at root)
+                val documents = if (parentId != null) {
+                    supabaseClient.postgrest[DOCUMENT].select {
+                        filter {
+                            eq("folder_id", parentId)
+                            // Optional: filter by user_id if documents are strictly user-owned
+                            // eq("user_id", currentUserId)
+                        }
+                        order("name", Order.ASCENDING) // Or created_at
+                    }.decodeList<Document>()
+                } else {
+                    emptyList() // No documents displayed at the root level alongside root folders
+                }
+
+                _folderContentUiState.value = FolderContentUiState.Success(subFolders, documents)
+
             } catch (e: Exception) {
-                _foldersUiState.value = FoldersUiState.Error("Error loading folders: ${e.message}")
-                _operationStatus.value = "Failed to load folders: ${e.message}"
+                _folderContentUiState.value =
+                    FolderContentUiState.Error("Error loading contents: ${e.message}")
                 e.printStackTrace()
             }
         }
     }
 
-    fun createFolder(name: String, description: String) {
+    fun createFolder(name: String, description: String, parentId: String?) {
         viewModelScope.launch(Dispatchers.IO) {
             val currentUserId = getCurrentUserId() ?: run {
                 _operationStatus.value = "User not authenticated to create folder."
                 return@launch
             }
+            // For now, allowing any authenticated user to create folders/subfolders.
+            // Add isCurrentUserAdmin() check if only admins should create.
+            // if (!isCurrentUserAdmin() && parentId == null) { // Example: only admins create root folders
+            //     _operationStatus.value = "Only managers can create root folders."
+            //     return@launch
+            // }
+
             try {
                 val newFolder = Folder(
                     id = uuid4().toString(),
-                    name = name,
-                    description = description,
+                    name = name.trim(),
+                    description = description.trim(),
                     userId = currentUserId,
-                    createdAt = Clock.System.now().toString(),
+                    parentId = parentId,
+                    createdAt = Clock.System.now().toString()
                 )
                 supabaseClient.postgrest[FOLDER].insert(newFolder)
                 _operationStatus.value = "Folder '$name' created successfully."
-                loadFolders()
+                loadFolderContents(parentId) // Refresh the parent folder's content
             } catch (e: Exception) {
                 _operationStatus.value = "Error creating folder: ${e.message}"
                 e.printStackTrace()
@@ -161,13 +182,18 @@ class FoldersViewModel(
         }
     }
 
-    fun updateFolder(folderId: String, name: String, description: String) {
+    fun updateFolder(
+        folderId: String,
+        name: String,
+        description: String,
+        currentParentId: String?
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             getCurrentUserId() ?: run {
                 _operationStatus.value = "User not authenticated."
                 return@launch
             }
-            if (!isCurrentUserAdmin()) {
+            if (!isCurrentUserAdmin()) { // Only admins can edit
                 _operationStatus.value = "Only designated managers can update folders."
                 return@launch
             }
@@ -175,16 +201,14 @@ class FoldersViewModel(
                 supabaseClient.postgrest[FOLDER]
                     .update(
                         {
-                            set("name", name)
-                            set("description", description)
+                            set("name", name.trim())
+                            set("description", description.trim())
                         }
                     ) {
-                        filter {
-                            eq("id", folderId)
-                        }
+                        filter { eq("id", folderId) }
                     }
                 _operationStatus.value = "Folder '$name' updated successfully."
-                loadFolders()
+                loadFolderContents(currentParentId) // Refresh the list where the folder was
             } catch (e: Exception) {
                 _operationStatus.value = "Error updating folder: ${e.message}"
                 e.printStackTrace()
@@ -192,23 +216,30 @@ class FoldersViewModel(
         }
     }
 
-    fun deleteFolder(folderId: String) {
+    fun deleteFolder(folderId: String, parentIdOfDeletedFolder: String?) {
         viewModelScope.launch(Dispatchers.IO) {
             getCurrentUserId() ?: run {
                 _operationStatus.value = "User not authenticated."
                 return@launch
             }
-            if (!isCurrentUserAdmin()) {
+            if (!isCurrentUserAdmin()) { // Only admins can delete
                 _operationStatus.value = "Only designated managers can delete folders."
                 return@launch
             }
+
+            // Implement recursive deletion or prevent deletion of non-empty folders
+            // For now, simple deletion of the folder record.
+            // WARNING: This does not delete sub-folders or documents within this folder from the DB.
+            // You need to implement that logic here (query and delete children first)
+            // or set up CASCADE DELETE in your PostgreSQL database.
             try {
-                supabaseClient.postgrest[FOLDER]
-                    .delete {
-                        filter { eq("id", folderId) }
-                    }
-                _operationStatus.value = "Folder deleted successfully."
-                loadFolders()
+                // 1. TODO: Delete documents in this folder from DB and Storage
+                // 2. TODO: Delete sub-folders (recursively)
+                // 3. Delete the folder itself
+                supabaseClient.postgrest[FOLDER].delete { filter { eq("id", folderId) } }
+                _operationStatus.value =
+                    "Folder deleted. (Note: Contents might require manual cleanup or DB cascade rules)."
+                loadFolderContents(parentIdOfDeletedFolder)
             } catch (e: Exception) {
                 _operationStatus.value = "Error deleting folder: ${e.message}"
                 e.printStackTrace()
@@ -216,54 +247,33 @@ class FoldersViewModel(
         }
     }
 
-    fun loadDocumentsForFolder(folderId: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _folderDocumentsUiState.value = FolderDocumentsUiState.Loading
-            if (getCurrentUserId() == null) {
-                _folderDocumentsUiState.value =
-                    FolderDocumentsUiState.Error("User not authenticated to load documents.")
-                return@launch
-            }
-            try {
-                val documents = supabaseClient.postgrest[DOCUMENT]
-                    .select {
-                        filter {
-                            eq("folder_id", folderId)
-                        }
-                        order("created_at", Order.DESCENDING)
-                    }
-                    .decodeList<Document>()
-                _folderDocumentsUiState.value = FolderDocumentsUiState.Success(documents)
-            } catch (e: Exception) {
-                _folderDocumentsUiState.value =
-                    FolderDocumentsUiState.Error("Error loading documents: ${e.message}")
-                _operationStatus.value = "Failed to load documents: ${e.message}"
-                e.printStackTrace()
-            }
-        }
-    }
-
-    fun uploadFileToFolder(folderId: String, fileData: FileData) {
+    fun uploadFileToFolder(targetFolderId: String, fileData: FileData) {
         viewModelScope.launch(Dispatchers.IO) {
             _fileUploadUiState.value = FileUploadUiState.Loading
             val currentUserId = getCurrentUserId() ?: run {
-                _fileUploadUiState.value = FileUploadUiState.Error("User not authenticated to upload.")
+                _fileUploadUiState.value = FileUploadUiState.Error("User not authenticated.")
                 return@launch
             }
+            // Allow any authenticated user to upload into a folder they can see.
+            // Add isCurrentUserAdmin() check if only admins should upload.
             if (!isCurrentUserAdmin()) {
-                _fileUploadUiState.value = FileUploadUiState.Error("Only designated managers can upload files.")
+                _fileUploadUiState.value =
+                    FileUploadUiState.Error("Only designated managers can upload files.")
                 return@launch
             }
 
             val originalFileName = fileData.name
             val fileExtension = originalFileName.substringAfterLast('.', "").trim().lowercase()
-            val safeExtension = if (fileExtension.matches(Regex("^[a-zA-Z0-9]+$")) && fileExtension.length <= 5) {
-                ".$fileExtension"
-            } else {
-                ""
-            }
+            val safeExtension =
+                if (fileExtension.matches(Regex("^[a-zA-Z0-9]+$")) && fileExtension.length <= 5) {
+                    ".$fileExtension"
+                } else {
+                    ""
+                }
             val uniqueStorageObjectName = "${uuid4()}$safeExtension"
-            val storagePath = "${currentUserId}/folder_${folderId}/${uniqueStorageObjectName}"
+            // Store files in a path that includes the folderId for organization in Supabase Storage
+            val storagePath =
+                "user_${currentUserId}/folder_${targetFolderId}/${uniqueStorageObjectName}"
 
             try {
                 supabaseClient.storage[BUCKET].upload(
@@ -274,7 +284,7 @@ class FoldersViewModel(
 
                 val documentMetadata = Document(
                     id = uuid4().toString(),
-                    folderId = folderId,
+                    folderId = targetFolderId, // Link document to its parent folder
                     name = originalFileName,
                     storageFilePath = storagePath,
                     userId = currentUserId,
@@ -282,8 +292,9 @@ class FoldersViewModel(
                     createdAt = Clock.System.now().toString()
                 )
                 supabaseClient.postgrest[DOCUMENT].insert(documentMetadata)
-                _fileUploadUiState.value = FileUploadUiState.Success("File '${originalFileName}' uploaded.")
-                loadDocumentsForFolder(folderId)
+                _fileUploadUiState.value =
+                    FileUploadUiState.Success("File '${originalFileName}' uploaded.")
+                loadFolderContents(targetFolderId) // Refresh the folder where the file was uploaded
             } catch (e: Exception) {
                 _fileUploadUiState.value = FileUploadUiState.Error("Upload failed: ${e.message}")
                 e.printStackTrace()
@@ -291,58 +302,61 @@ class FoldersViewModel(
         }
     }
 
-    // Existing function to download to cache and then open
     fun downloadAndOpenFile(document: Document) {
         viewModelScope.launch(Dispatchers.IO) {
             if (document.storageFilePath == null) {
                 _fileDownloadUiState.value = FileDownloadUiState.Error("File path is missing.")
                 return@launch
             }
-
             _fileDownloadUiState.value = FileDownloadUiState.Downloading(document.name, 0f)
             try {
-                val bytes = supabaseClient.storage[BUCKET].downloadPublic(document.storageFilePath!!)
+                val bytes =
+                    supabaseClient.storage[BUCKET].downloadPublic(document.storageFilePath!!)
                 _fileDownloadUiState.value = FileDownloadUiState.Downloading(document.name, 0.5f)
 
-                val fileName = document.name
-                val mimeType = document.mimeType ?: "application/octet-stream"
-
-                val savedToCachePath = fileSaver.saveFile(FileData(fileName, bytes, mimeType))
+                val fileDataInstance =
+                    FileData(document.name, bytes, document.mimeType ?: "application/octet-stream")
+                val savedToCachePath = fileSaver.saveFile(fileDataInstance)
                 _fileDownloadUiState.value = FileDownloadUiState.Downloading(document.name, 1f)
 
                 if (savedToCachePath != null) {
                     _fileDownloadUiState.value = FileDownloadUiState.Success(
-                        fileName = fileName,
-                        message = "File '$fileName' ready. Opening...",
+                        fileName = document.name,
+                        message = "File '${document.name}' ready. Opening...",
                         localPath = savedToCachePath,
-                        mimeType = mimeType
+                        mimeType = document.mimeType
                     )
-                    openFile(savedToCachePath, mimeType)
+                    openFile(savedToCachePath, document.mimeType)
                 } else {
-                    _fileDownloadUiState.value = FileDownloadUiState.Error("Failed to save file '$fileName' to cache.")
+                    _fileDownloadUiState.value =
+                        FileDownloadUiState.Error("Failed to save file '${document.name}' to cache.")
                 }
             } catch (e: Exception) {
-                _fileDownloadUiState.value = FileDownloadUiState.Error("Download & open failed for '${document.name}': ${e.message}")
+                _fileDownloadUiState.value =
+                    FileDownloadUiState.Error("Download & open failed: ${e.message}")
                 e.printStackTrace()
             }
         }
     }
 
-    // New function to download to public "Downloads" folder
     fun downloadAndSaveToPublicDownloads(document: Document) {
         viewModelScope.launch(Dispatchers.IO) {
             if (document.storageFilePath == null) {
-                _filePublicDownloadUiState.value = FilePublicDownloadUiState.Error("File path is missing for document: ${document.name}")
+                _filePublicDownloadUiState.value =
+                    FilePublicDownloadUiState.Error("File path is missing.")
                 return@launch
             }
-
-            _filePublicDownloadUiState.value = FilePublicDownloadUiState.Downloading(document.name, 0f)
+            _filePublicDownloadUiState.value =
+                FilePublicDownloadUiState.Downloading(document.name, 0f)
             try {
-                val bytes = supabaseClient.storage[BUCKET].downloadPublic(document.storageFilePath!!)
-                _filePublicDownloadUiState.value = FilePublicDownloadUiState.Downloading(document.name, 0.5f) // Simulate 50% after download
+                val bytes =
+                    supabaseClient.storage[BUCKET].downloadPublic(document.storageFilePath!!)
+                _filePublicDownloadUiState.value =
+                    FilePublicDownloadUiState.Downloading(document.name, 0.5f)
 
-                val fileData = FileData(document.name, bytes, document.mimeType ?: "application/octet-stream")
-                val publicPath = fileSaver.saveFileToPublicDownloads(fileData)
+                val fileDataInstance =
+                    FileData(document.name, bytes, document.mimeType ?: "application/octet-stream")
+                val publicPath = fileSaver.saveFileToPublicDownloads(fileDataInstance)
 
                 if (publicPath != null) {
                     _filePublicDownloadUiState.value = FilePublicDownloadUiState.Success(
@@ -351,24 +365,16 @@ class FoldersViewModel(
                         publicPath = publicPath
                     )
                 } else {
-                    _filePublicDownloadUiState.value = FilePublicDownloadUiState.Error("Failed to save '${document.name}' to Downloads.")
+                    _filePublicDownloadUiState.value =
+                        FilePublicDownloadUiState.Error("Failed to save '${document.name}'.")
                 }
             } catch (e: Exception) {
-                _filePublicDownloadUiState.value = FilePublicDownloadUiState.Error("Error saving '${document.name}' to Downloads: ${e.message}")
+                _filePublicDownloadUiState.value =
+                    FilePublicDownloadUiState.Error("Download to public failed: ${e.message}")
                 e.printStackTrace()
             }
         }
     }
-
-
-    fun clearFileDownloadStatus() { // For cache/open flow
-        _fileDownloadUiState.value = FileDownloadUiState.Idle
-    }
-
-    fun clearFilePublicDownloadStatus() { // For public download flow
-        _filePublicDownloadUiState.value = FilePublicDownloadUiState.Idle
-    }
-
 
     fun deleteDocument(document: Document) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -397,7 +403,7 @@ class FoldersViewModel(
                 }
 
                 _operationStatus.value = "Document '${document.name}' deleted successfully."
-                loadDocumentsForFolder(document.folderId)
+                loadFolderContents(document.folderId)
             } catch (e: Exception) {
                 _operationStatus.value = "Error deleting document '${document.name}': ${e.message}"
                 e.printStackTrace()
@@ -405,8 +411,17 @@ class FoldersViewModel(
         }
     }
 
+    // --- Clear Status Functions ---
     fun clearFileUploadStatus() {
         _fileUploadUiState.value = FileUploadUiState.Idle
+    }
+
+    fun clearFileDownloadStatus() {
+        _fileDownloadUiState.value = FileDownloadUiState.Idle
+    }
+
+    fun clearFilePublicDownloadStatus() {
+        _filePublicDownloadUiState.value = FilePublicDownloadUiState.Idle
     }
 
     fun clearOperationStatus() {
