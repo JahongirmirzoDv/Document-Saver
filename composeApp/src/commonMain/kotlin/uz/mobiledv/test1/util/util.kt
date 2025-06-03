@@ -29,6 +29,12 @@ expect class FilePicker {
     suspend fun pickMultipleFiles(allowedTypes: List<String> = listOf("*/*")): List<FileData>?
 }
 
+data class DirectoryUploadRequest(
+    val directoryName: String,
+    val files: List<FileData>, // FileData is your existing class
+    val subDirectories: List<DirectoryUploadRequest>
+)
+
 // Expect declaration for composable single file picker launcher
 @Composable
 expect fun rememberSingleFilePickerLauncher(
@@ -57,4 +63,9 @@ expect fun rememberMultipleFilesPickerLauncher(
         "application/vnd.ms-excel", // .xls
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" // .xlsx
     )
+): () -> Unit
+
+@Composable
+expect fun rememberDirectoryPickerLauncher(
+    onDirectoryPicked: (DirectoryUploadRequest?) -> Unit
 ): () -> Unit

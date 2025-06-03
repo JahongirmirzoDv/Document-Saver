@@ -81,6 +81,8 @@ kotlin {
 
             implementation("com.squareup.okio:okio:3.9.0")
 
+            implementation(libs.androidx.documentfile)
+
 //            implementation(libs.moko.mvvm.core) // Or moko-mvvm-viewmodel
 //            implementation(libs.moko.mvvm.compose) // For rememberViewModel
 

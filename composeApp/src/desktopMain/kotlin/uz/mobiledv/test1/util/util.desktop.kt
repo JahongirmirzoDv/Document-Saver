@@ -10,6 +10,7 @@ import java.awt.FileDialog // Import FileDialog
 import java.awt.Frame
 import java.io.File
 import java.io.FilenameFilter // Import FilenameFilter
+import javax.swing.JFileChooser
 import javax.swing.SwingUtilities // Keep for EDT operations if complex setup needed, though FileDialog is simpler
 
 // Helper function to get the parent Frame, needed for FileDialog
@@ -156,4 +157,122 @@ actual fun rememberMultipleFilesPickerLauncher(
             onFilesPicked(fileDataList)
         }
     }
+}
+
+
+@Composable
+actual fun rememberDirectoryPickerLauncher(
+    onDirectoryPicked: (DirectoryUploadRequest?) -> Unit
+): () -> Unit {
+    val scope = rememberCoroutineScope()
+
+    return {
+        scope.launch { // Launch a coroutine for processing
+            val directoryPath = pickDirectoryDesktop()
+            if (directoryPath != null) {
+                val request = processFileTree(directoryPath)
+                onDirectoryPicked(request)
+            } else {
+                onDirectoryPicked(null) // Selection cancelled
+            }
+        }
+    }
+}
+
+private suspend fun pickDirectoryDesktop(): File? = withContext(Dispatchers.IO) {
+    var selectedDirectory: File? = null
+    // FileDialog is an AWT component, operations should be on the EDT.
+    try {
+        // For macOS, to enable directory selection in FileDialog:
+        System.setProperty("apple.awt.fileDialogForDirectories", "true")
+
+        SwingUtilities.invokeAndWait {
+            val parentFrame = getParentFrame() // Your existing helper
+            val dialog = FileDialog(parentFrame, "Select Folder to Upload", FileDialog.LOAD)
+            // No direct setFileSelectionMode(DIRECTORIES_ONLY) for standard FileDialog.
+            // The system property above handles it for macOS.
+            // For other OSes, FileDialog's native directory picking capability might vary.
+
+            dialog.isVisible = true
+
+            if (dialog.directory != null && dialog.file != null) {
+                // When "apple.awt.fileDialogForDirectories" is true,
+                // dialog.getDirectory() + dialog.getFile() usually forms the path to the selected directory.
+                // Or, if dialog.getFile() is just the directory name, dialog.getDirectory() is its parent.
+                // A more robust way for directory selection might be just File(dialog.getDirectory(), dialog.getFile())
+                // if dialog.getDirectory() gives the parent and dialog.getFile() is the directory name itself.
+                // If dialog.getDirectory() gives the full path to the directory, and dialog.getFile() is the directory name:
+                val selectedPath = File(dialog.directory, dialog.file)
+                if (selectedPath.isDirectory) {
+                    selectedDirectory = selectedPath
+                } else {
+                    // Fallback or logging if the selection isn't a directory as expected
+                    // This might happen if the system property doesn't work as intended on non-macOS
+                    println("FileDialog selection was not a directory: ${selectedPath.absolutePath}")
+                    // On some systems, if a directory is "selected", dialog.directory might be the path
+                    // and dialog.file might be null or the directory name.
+                    // Let's try checking dialog.getDirectory() itself if the above fails.
+                    val dirOnlyPath = File(dialog.directory)
+                    if (dirOnlyPath.isDirectory) {
+                        selectedDirectory = dirOnlyPath
+                    } else {
+                        println("FileDialog's dialog.getDirectory() was also not a directory: ${dirOnlyPath.absolutePath}")
+                    }
+                }
+            } else if (dialog.directory != null) {
+                // Sometimes, for a directory, getFile() might be null and getDirectory() holds the path.
+                val dirPath = File(dialog.directory)
+                if (dirPath.isDirectory) {
+                    selectedDirectory = dirPath
+                } else {
+                    println("FileDialog only had dialog.getDirectory(), but it wasn't a directory: ${dirPath.absolutePath}")
+                }
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace() // Handle exceptions during Swing interaction
+    } finally {
+        // It's good practice to reset the system property if you changed it,
+        // though its effect is typically per-dialog instance on macOS.
+        // For broader safety or if other FileDialogs are used for files:
+        System.setProperty("apple.awt.fileDialogForDirectories", "false")
+    }
+    selectedDirectory
+}
+
+
+private fun processFileTree(directory: File): DirectoryUploadRequest {
+    val filesInDirectory = mutableListOf<FileData>()
+    val subDirectoriesList = mutableListOf<DirectoryUploadRequest>()
+
+    directory.listFiles()?.forEach { childFile ->
+        // --- Add this condition to skip .DS_Store and other unwanted files ---
+        if (childFile.name == ".DS_Store" || childFile.isHidden) { // You can add more specific checks if needed
+            // Skip .DS_Store files and other hidden files
+            return@forEach // Skips the rest of the code in this iteration of the loop
+        }
+        // --- End of addition ---
+
+        if (childFile.isDirectory) {
+            subDirectoriesList.add(processFileTree(childFile)) // Recurse
+        } else if (childFile.isFile) {
+            val fileName = childFile.name
+            val mimeType = try {
+                java.nio.file.Files.probeContentType(childFile.toPath()) ?: "application/octet-stream"
+            } catch (e: Exception) {
+                "application/octet-stream"
+            }
+            try {
+                val bytes = childFile.readBytes()
+                filesInDirectory.add(FileData(fileName, bytes, mimeType))
+            } catch (e: Exception) {
+                println("Error reading file ${childFile.name}: ${e.message}")
+            }
+        }
+    }
+    return DirectoryUploadRequest(
+        directoryName = directory.name,
+        files = filesInDirectory,
+        subDirectories = subDirectoriesList
+    )
 }

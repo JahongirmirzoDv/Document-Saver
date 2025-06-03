@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.CreateNewFolder // Icon for add fo
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder // Default folder icon
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -37,6 +38,7 @@ import uz.mobiledv.test1.model.Document
 import uz.mobiledv.test1.model.Folder
 import uz.mobiledv.test1.util.FileData
 import uz.mobiledv.test1.util.isValidEmail
+import uz.mobiledv.test1.util.rememberDirectoryPickerLauncher
 // import uz.mobiledv.test1.util.rememberFilePickerLauncher // Old import
 import uz.mobiledv.test1.util.rememberMultipleFilesPickerLauncher // New import
 import java.net.URLDecoder
@@ -71,6 +73,7 @@ fun FolderContentsScreen(
     val filePublicDownloadState by foldersViewModel.filePublicDownloadUiState.collectAsStateWithLifecycle() // For public downloads
     val operationStatus by foldersViewModel.operationStatus.collectAsStateWithLifecycle() // For folder CUD messages
     val userCreationAlert by appViewModel.operationAlert.collectAsStateWithLifecycle() // For user creation messages
+    val directoryUploadState by foldersViewModel.directoryUploadUiState.collectAsStateWithLifecycle() // New state
 
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -93,6 +96,34 @@ fun FolderContentsScreen(
                 scope.launch { snackbarHostState.showSnackbar("Cannot upload files to the root. Please select a folder.") }
             }
         })
+
+    val directoryPickerLauncher = rememberDirectoryPickerLauncher { directoryRequest ->
+        if (directoryRequest != null) {
+            // Upload to the current folder if one is open, or to root if currentFolderId is null
+            foldersViewModel.uploadDirectory(currentFolderId, directoryRequest)
+        } else {
+            scope.launch { snackbarHostState.showSnackbar("Folder selection cancelled.") }
+        }
+    }
+
+    // Handle Directory Upload State with Snackbar or Dialog
+    LaunchedEffect(directoryUploadState) {
+        when (val state = directoryUploadState) {
+            is DirectoryUploadUiState.Uploading -> {
+                // Optionally show a persistent dialog or use snackbar for progress
+                snackbarHostState.showSnackbar("${state.message} (${(state.progress * 100).toInt()}%)")
+            }
+            is DirectoryUploadUiState.Success -> {
+                snackbarHostState.showSnackbar(state.message)
+                foldersViewModel.clearDirectoryUploadStatus() // Reset state
+            }
+            is DirectoryUploadUiState.Error -> {
+                snackbarHostState.showSnackbar("Directory Upload Error: ${state.message}")
+                foldersViewModel.clearDirectoryUploadStatus() // Reset state
+            }
+            is DirectoryUploadUiState.Idle -> Unit
+        }
+    }
 
     LaunchedEffect(currentFolderId, appViewModel.getCurrentUser()?.id) {
         foldersViewModel.loadFolderContents(currentFolderId)
@@ -206,6 +237,16 @@ fun FolderContentsScreen(
                         Icon(Icons.Filled.CreateNewFolder, "Create New Folder")
                     }
                 }
+                // New FAB for "Upload Folder" (visible to managers, or adjust as needed)
+                if (isManager) { // You can adjust who sees this
+                    FloatingActionButton(
+                        onClick = { directoryPickerLauncher() },
+                        modifier = Modifier.padding(bottom = 8.dp) // Adjust spacing if multiple FABs
+                    ) {
+                        Icon(Icons.Filled.FolderOpen, "Upload Folder")
+                    }
+                }
+
                 if (isManager && currentFolderId != null) { // Upload File FAB only if inside a folder for managers
                     FloatingActionButton(onClick = { multipleFilesPickerLauncher() }) { // Use the new launcher
                         Icon(Icons.Filled.CloudUpload, "Upload File(s)")

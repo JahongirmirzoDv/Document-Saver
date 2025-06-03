@@ -20,6 +20,7 @@ import uz.mobiledv.test1.di.DOCUMENT
 import uz.mobiledv.test1.di.FOLDER
 import uz.mobiledv.test1.model.Document
 import uz.mobiledv.test1.model.Folder
+import uz.mobiledv.test1.util.DirectoryUploadRequest
 import uz.mobiledv.test1.util.FileData
 import uz.mobiledv.test1.util.FileSaver
 import uz.mobiledv.test1.util.openFile
@@ -33,6 +34,13 @@ sealed class FolderContentUiState {
         FolderContentUiState()
 
     data class Error(val message: String) : FolderContentUiState()
+}
+
+sealed class DirectoryUploadUiState {
+    data object Idle : DirectoryUploadUiState()
+    data class Uploading(val message: String, val progress: Float) : DirectoryUploadUiState() // progress can be overall
+    data class Success(val message: String) : DirectoryUploadUiState()
+    data class Error(val message: String) : DirectoryUploadUiState()
 }
 
 sealed class FileUploadUiState {
@@ -90,6 +98,10 @@ class FoldersViewModel(
         MutableStateFlow<FilePublicDownloadUiState>(FilePublicDownloadUiState.Idle)
     val filePublicDownloadUiState: StateFlow<FilePublicDownloadUiState> =
         _filePublicDownloadUiState.asStateFlow()
+
+    private val _directoryUploadUiState = MutableStateFlow<DirectoryUploadUiState>(DirectoryUploadUiState.Idle)
+    val directoryUploadUiState: StateFlow<DirectoryUploadUiState> = _directoryUploadUiState.asStateFlow()
+
 
     private fun getCurrentUserId(): String? = authSettings.getCurrentUser()?.id
     private fun isCurrentUserAdmin(): Boolean = authSettings.getCurrentUser()?.isAdmin == true
@@ -400,6 +412,116 @@ class FoldersViewModel(
                 e.printStackTrace()
             }
         }
+    }
+
+    fun uploadDirectory(currentSupabaseParentFolderId: String?, request: DirectoryUploadRequest) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _directoryUploadUiState.value = DirectoryUploadUiState.Uploading("Starting upload for folder '${request.directoryName}'...", 0f)
+            val currentUserId = getCurrentUserId() ?: run {
+                _directoryUploadUiState.value = DirectoryUploadUiState.Error("User not authenticated.")
+                return@launch
+            }
+            // Add permission check if needed, e.g., based on appViewModel.isManager
+            // if (!isCurrentUserAdmin()) {
+            //     _directoryUploadUiState.value = DirectoryUploadUiState.Error("User does not have permission.")
+            //     return@launch
+            // }
+
+            try {
+                val createdRootFolderId = processAndUploadDirectory(currentSupabaseParentFolderId, request, currentUserId, 0f, 1f)
+                _directoryUploadUiState.value = DirectoryUploadUiState.Success("Folder '${request.directoryName}' and its contents uploaded successfully.")
+                loadFolderContents(currentSupabaseParentFolderId) // Refresh the list where the new folder was added
+            } catch (e: Exception) {
+                _directoryUploadUiState.value = DirectoryUploadUiState.Error("Failed to upload folder structure: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    private suspend fun processAndUploadDirectory(
+        parentSupabaseFolderId: String?, // ID of the Supabase folder where this directory should be created
+        dirRequest: DirectoryUploadRequest,
+        userId: String,
+        progressStart: Float, // For progress tracking
+        progressRange: Float  // For progress tracking
+    ): String { // Returns the ID of the created Supabase folder
+
+        val currentDirProgressPortion = 0.2f * progressRange // 20% for creating this dir and its direct files
+
+        // 1. Create the current directory in Supabase
+        _directoryUploadUiState.value = DirectoryUploadUiState.Uploading(
+            "Creating folder: ${dirRequest.directoryName}",
+            progressStart
+        )
+        val newSupabaseFolder = Folder(
+            id = uuid4().toString(), // Generate new UUID for the folder
+            name = dirRequest.directoryName,
+            description = "Uploaded folder: ${dirRequest.directoryName}",
+            userId = userId,
+            parentId = parentSupabaseFolderId,
+            createdAt = Clock.System.now().toString()
+        )
+        supabaseClient.postgrest[FOLDER].insert(newSupabaseFolder)
+        // _operationStatus.value = "Folder '${newSupabaseFolder.name}' created." // Optional finer-grained status
+
+        val newFolderSupabaseId = newSupabaseFolder.id
+
+        // 2. Upload files directly within the current directory
+        if (dirRequest.files.isNotEmpty()) {
+            _directoryUploadUiState.value = DirectoryUploadUiState.Uploading(
+                "Uploading ${dirRequest.files.size} files in ${dirRequest.directoryName}...",
+                progressStart + (currentDirProgressPortion * 0.1f) // Increment progress slightly
+            )
+            // Re-use or adapt your existing batch file upload logic.
+            // Simplified version for demonstration:
+            for ((index, fileData) in dirRequest.files.withIndex()) {
+                val fileProgress = (index.toFloat() / dirRequest.files.size) * (currentDirProgressPortion * 0.9f)
+                _directoryUploadUiState.value = DirectoryUploadUiState.Uploading(
+                    "Uploading file ${fileData.name} in ${dirRequest.directoryName}...",
+                    progressStart + (currentDirProgressPortion * 0.1f) + fileProgress
+                )
+                val originalFileName = fileData.name
+                // Ensure unique storage path, e.g., using UUID
+                val fileExtension = originalFileName.substringAfterLast('.', "").let { if (it.isNotEmpty()) ".$it" else "" }
+                val storageFileName = "${uuid4()}$fileExtension"
+                val storagePath = "user_${userId}/folder_${newFolderSupabaseId}/${storageFileName}"
+
+                supabaseClient.storage[BUCKET].upload(
+                    path = storagePath,
+                    data = fileData.bytes,
+                    options = { upsert = false } // Or true if you want to overwrite
+                )
+
+                val documentMetadata = Document(
+                    id = uuid4().toString(),
+                    folderId = newFolderSupabaseId,
+                    name = originalFileName,
+                    storageFilePath = storagePath,
+                    userId = userId,
+                    mimeType = fileData.mimeType,
+                    createdAt = Clock.System.now().toString()
+                )
+                supabaseClient.postgrest[DOCUMENT].insert(documentMetadata)
+            }
+            // _operationStatus.value = "${dirRequest.files.size} files uploaded to '${dirRequest.directoryName}'."
+        }
+
+        // 3. Recursively process subdirectories
+        val subDirectoriesProgressPortion = 0.8f * progressRange // Remaining 80% for subfolders
+        var currentSubDirProgress = progressStart + currentDirProgressPortion
+
+        if (dirRequest.subDirectories.isNotEmpty()) {
+            val progressPerSubDir = subDirectoriesProgressPortion / dirRequest.subDirectories.size
+            for (subDirRequest in dirRequest.subDirectories) {
+                processAndUploadDirectory(newFolderSupabaseId, subDirRequest, userId, currentSubDirProgress, progressPerSubDir)
+                currentSubDirProgress += progressPerSubDir
+            }
+        }
+        return newFolderSupabaseId
+    }
+
+    fun clearDirectoryUploadStatus() {
+        _directoryUploadUiState.value = DirectoryUploadUiState.Idle
     }
 
     // --- Clear Status Functions ---

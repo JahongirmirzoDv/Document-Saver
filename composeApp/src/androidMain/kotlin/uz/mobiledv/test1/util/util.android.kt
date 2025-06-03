@@ -6,7 +6,12 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.documentfile.provider.DocumentFile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 actual class FilePicker {
     actual suspend fun pickSingleFile(allowedTypes: List<String>): FileData? {
@@ -135,4 +140,68 @@ private fun processUri(
         e.printStackTrace()
         onResult(null)
     }
+}
+
+
+@Composable
+actual fun rememberDirectoryPickerLauncher(
+    onDirectoryPicked: (DirectoryUploadRequest?) -> Unit
+): () -> Unit {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+        onResult = { treeUri: Uri? ->
+            if (treeUri != null) {
+                scope.launch { // Launch a coroutine for processing
+                    val request = processDocumentFileTree(context, treeUri)
+                    onDirectoryPicked(request)
+                }
+            } else {
+                onDirectoryPicked(null) // Selection cancelled
+            }
+        }
+    )
+    return { launcher.launch(null) } // Initial URI can be null to start at default location
+}
+
+private suspend fun processDocumentFileTree(context: Context, treeUri: Uri): DirectoryUploadRequest? {
+    return withContext(Dispatchers.IO) { // Perform file operations off the main thread
+        val rootDocumentFile = DocumentFile.fromTreeUri(context, treeUri)
+        if (rootDocumentFile != null && rootDocumentFile.isDirectory) {
+            buildDirectoryRequest(context, rootDocumentFile)
+        } else {
+            null
+        }
+    }
+}
+
+private fun buildDirectoryRequest(context: Context, documentFile: DocumentFile): DirectoryUploadRequest {
+    val filesInDirectory = mutableListOf<FileData>()
+    val subDirectoriesList = mutableListOf<DirectoryUploadRequest>()
+
+    documentFile.listFiles().forEach { childDocFile ->
+        if (childDocFile.isDirectory) {
+            subDirectoriesList.add(buildDirectoryRequest(context, childDocFile)) // Recurse
+        } else if (childDocFile.isFile) {
+            val fileName = childDocFile.name ?: "unknown_file_${System.currentTimeMillis()}"
+            val mimeType = context.contentResolver.getType(childDocFile.uri)
+            try {
+                context.contentResolver.openInputStream(childDocFile.uri)?.use { inputStream ->
+                    val bytes = inputStream.readBytes()
+                    filesInDirectory.add(FileData(fileName, bytes, mimeType))
+                }
+            } catch (e: Exception) {
+                println("Error reading file ${childDocFile.name}: ${e.message}")
+                // Optionally, inform the user or skip this file
+            }
+        }
+    }
+
+    return DirectoryUploadRequest(
+        directoryName = documentFile.name ?: "Unnamed Directory",
+        files = filesInDirectory,
+        subDirectories = subDirectoriesList
+    )
 }
