@@ -38,12 +38,16 @@ import uz.mobiledv.test1.model.Document
 import uz.mobiledv.test1.model.Folder
 import uz.mobiledv.test1.util.FileData
 import uz.mobiledv.test1.util.isValidEmail
+import uz.mobiledv.test1.util.openFileLocationInFileManager
 import uz.mobiledv.test1.util.rememberDirectoryPickerLauncher
 // import uz.mobiledv.test1.util.rememberFilePickerLauncher // Old import
 import uz.mobiledv.test1.util.rememberMultipleFilesPickerLauncher // New import
+import java.io.File
+import java.net.URI
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import kotlin.math.acos
 
 // Helper for navigation arguments
 fun encodeNavArg(arg: String?): String =
@@ -57,6 +61,7 @@ fun decodeNavArg(arg: String?): String? = if (arg == "null") null else arg?.let 
 }
 
 
+@Suppress("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FolderContentsScreen(
@@ -84,6 +89,7 @@ fun FolderContentsScreen(
     var showDeleteFolderDialog by remember { mutableStateOf<Folder?>(null) }
     var showCreateUserDialog by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+
 
     // Use the new multiple files picker launcher
     val multipleFilesPickerLauncher =
@@ -113,14 +119,17 @@ fun FolderContentsScreen(
                 // Optionally show a persistent dialog or use snackbar for progress
                 snackbarHostState.showSnackbar("${state.message} (${(state.progress * 100).toInt()}%)")
             }
+
             is DirectoryUploadUiState.Success -> {
                 snackbarHostState.showSnackbar(state.message)
                 foldersViewModel.clearDirectoryUploadStatus() // Reset state
             }
+
             is DirectoryUploadUiState.Error -> {
                 snackbarHostState.showSnackbar("Directory Upload Error: ${state.message}")
                 foldersViewModel.clearDirectoryUploadStatus() // Reset state
             }
+
             is DirectoryUploadUiState.Idle -> Unit
         }
     }
@@ -165,7 +174,17 @@ fun FolderContentsScreen(
     LaunchedEffect(filePublicDownloadState) {
         when (val state = filePublicDownloadState) {
             is FilePublicDownloadUiState.Success -> {
-                snackbarHostState.showSnackbar(state.message)
+                val result = snackbarHostState.showSnackbar(
+                    message = "File has been downloaded.",
+                    actionLabel = "OPEN",
+                    // Keep the snackbar on screen long enough to be tapped
+                    duration = SnackbarDuration.Long
+                )
+
+                // 4. Check if the action button was tapped
+                if (result == SnackbarResult.ActionPerformed) {
+                    openFileLocationInFileManager()
+                }
                 foldersViewModel.clearFilePublicDownloadStatus()
             }
 
@@ -254,7 +273,12 @@ fun FolderContentsScreen(
                 }
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = {
+            SnackbarHost(
+                snackbarHostState,
+                modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
+            )
+        }
     ) { paddingValues ->
         val pullRefreshState = rememberPullToRefreshState()
         PullToRefreshBox(

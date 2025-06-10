@@ -1,4 +1,8 @@
-package uz.mobiledv.test1.util// ... (existing code in util.kt)
+package uz.mobiledv.test1.util
+
+import java.io.File
+
+// ... (existing code in util.kt)
 
 // Expect declaration for opening a file
 /**
@@ -9,3 +13,12 @@ package uz.mobiledv.test1.util// ... (existing code in util.kt)
  * @param mimeType The MIME type of the file (e.g., "application/pdf", "image/png"). Crucial for Android.
  */
 expect fun openFile(filePath: String, mimeType: String?)
+
+
+/**
+ * Opens the directory containing the specified file in the default file manager.
+ *
+ * @param context The context needed to start the activity.
+ * @param file The file whose containing directory should be opened.
+ */
+expect fun openFileLocationInFileManager()

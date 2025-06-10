@@ -20,3 +20,6 @@ actual fun openFile(filePath: String, mimeType: String?) {
         e.printStackTrace()
     }
 }
+
+actual fun openFileLocationInFileManager(file: File) {
+}
