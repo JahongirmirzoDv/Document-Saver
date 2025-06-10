@@ -1,7 +1,7 @@
 package uz.mobiledv.test1.util
 
 enum class PlatformType {
-    ANDROID, DESKTOP, UNKNOWN
+    ANDROID, DESKTOP, IOS, UNKNOWN
 }
 
 expect fun getCurrentPlatform(): PlatformType

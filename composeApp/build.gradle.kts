@@ -23,8 +23,21 @@ kotlin {
     androidTarget()
     jvm("desktop")
 
+    listOf(
+        iosX64(),
+        iosArm64(),
+        iosSimulatorArm64()
+    ).forEach { iosTarget ->
+        iosTarget.binaries.framework {
+            baseName = "ComposeApp"
+            isStatic = true
+        }
+    }
+
+
     sourceSets {
         val desktopMain by getting
+
 
         androidMain.dependencies {
             implementation(compose.preview)
@@ -103,6 +116,10 @@ kotlin {
             implementation(libs.multiplatformSettings.noArg) // For Desktop (uses Java Preferences)
 
         }
+
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+        }
     }
 }
 
@@ -163,4 +180,8 @@ compose.desktop {
             }
         }
     }
+}
+
+compose.experimental {
+    web.application {}
 }
