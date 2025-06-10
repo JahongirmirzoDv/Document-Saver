@@ -3,6 +3,7 @@ package uz.mobiledv.test1.util
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import okio.Sink
+import okio.use
 import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSUserDomainMask

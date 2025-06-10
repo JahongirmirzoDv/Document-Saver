@@ -29,7 +29,7 @@ kotlin {
         iosSimulatorArm64()
     ).forEach { iosTarget ->
         iosTarget.binaries.framework {
-            baseName = "ComposeApp"
+            baseName = "DocSaver"
             isStatic = true
         }
     }
@@ -85,7 +85,7 @@ kotlin {
             implementation("io.github.jan-tennert.supabase:postgrest-kt")
             implementation("io.github.jan-tennert.supabase:storage-kt")
             implementation("io.github.jan-tennert.supabase:auth-kt")
-            implementation("io.github.jan-tennert.supabase:realtime-kt")
+//            implementation("io.github.jan-tennert.supabase:realtime-kt")
 
             implementation(libs.multiplatformSettings.noArg) // Common dependency
             implementation(libs.multiplatformSettings.coroutines) // Optional for coroutines support
@@ -116,10 +116,13 @@ kotlin {
             implementation(libs.multiplatformSettings.noArg) // For Desktop (uses Java Preferences)
 
         }
-
-        iosMain.dependencies {
+        nativeMain.dependencies {
             implementation(libs.ktor.client.darwin)
         }
+
+//        iosMain.dependencies {
+//            implementation(libs.ktor.client.darwin)
+//        }
     }
 }
 

@@ -10,6 +10,7 @@ import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSString
 import platform.Foundation.NSUserDomainMask
 import platform.Foundation.create
+import platform.Foundation.stringByAppendingPathComponent
 import platform.Foundation.writeToFile
 
 @OptIn(ExperimentalForeignApi::class)
