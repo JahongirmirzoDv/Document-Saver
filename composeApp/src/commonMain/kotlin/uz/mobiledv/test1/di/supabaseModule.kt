@@ -9,7 +9,6 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.logging.LogLevel
 import io.github.jan.supabase.postgrest.Postgrest
-import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.resumable.SettingsResumableCache
 import io.github.jan.supabase.storage.storage
@@ -43,7 +42,6 @@ val supabaseStorageModule = module {
 
             defaultLogLevel = LogLevel.DEBUG
             install(Postgrest)
-            install(Realtime)
 
             httpConfig {
                 install(HttpTimeout){

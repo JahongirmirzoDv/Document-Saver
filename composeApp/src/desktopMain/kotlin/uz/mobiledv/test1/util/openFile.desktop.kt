@@ -21,5 +21,5 @@ actual fun openFile(filePath: String, mimeType: String?) {
     }
 }
 
-actual fun openFileLocationInFileManager(file: File) {
+actual fun openFileLocationInFileManager() {
 }
