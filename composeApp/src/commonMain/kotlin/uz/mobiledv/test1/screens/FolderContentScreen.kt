@@ -97,9 +97,9 @@ fun FolderContentsScreen(
             if (!filesData.isNullOrEmpty() && currentFolderId != null) {
                 foldersViewModel.uploadFilesToFolder(currentFolderId, filesData)
             } else if (filesData.isNullOrEmpty() && currentFolderId != null) { // filesData is null or empty list
-                scope.launch { snackbarHostState.showSnackbar("File selection cancelled, no files chosen, or invalid type(s).") }
+                scope.launch { snackbarHostState.showSnackbar("Fayl tanlash bekor qilindi yoki hech qanday fayl tanlanmadi.") }
             } else if (currentFolderId == null) {
-                scope.launch { snackbarHostState.showSnackbar("Cannot upload files to the root. Please select a folder.") }
+                scope.launch { snackbarHostState.showSnackbar("Faylni yuklash mumkin emas. Iltimos, biror papkani tanlang.") }
             }
         })
 
@@ -108,7 +108,7 @@ fun FolderContentsScreen(
             // Upload to the current folder if one is open, or to root if currentFolderId is null
             foldersViewModel.uploadDirectory(currentFolderId, directoryRequest)
         } else {
-            scope.launch { snackbarHostState.showSnackbar("Folder selection cancelled.") }
+            scope.launch { snackbarHostState.showSnackbar("Papka tanlash bekor qilindi.") }  // Show a message if no directory was selected
         }
     }
 
@@ -126,7 +126,7 @@ fun FolderContentsScreen(
             }
 
             is DirectoryUploadUiState.Error -> {
-                snackbarHostState.showSnackbar("Directory Upload Error: ${state.message}")
+                snackbarHostState.showSnackbar("Papka yuklash hatosi: ${state.message}")
                 foldersViewModel.clearDirectoryUploadStatus() // Reset state
             }
 
@@ -147,7 +147,7 @@ fun FolderContentsScreen(
             }
 
             is FileUploadUiState.Error -> {
-                snackbarHostState.showSnackbar("Upload Error: ${state.message}")
+                snackbarHostState.showSnackbar("Yuklash hatosi: ${state.message}")
                 foldersViewModel.clearFileUploadStatus() // Important to reset the state
             }
 
@@ -163,7 +163,7 @@ fun FolderContentsScreen(
             }
 
             is FileDownloadUiState.Error -> {
-                snackbarHostState.showSnackbar("Open Error: ${state.message}")
+                snackbarHostState.showSnackbar("Ochishda hato: ${state.message}")
                 foldersViewModel.clearFileDownloadStatus()
             }
 
@@ -175,7 +175,7 @@ fun FolderContentsScreen(
         when (val state = filePublicDownloadState) {
             is FilePublicDownloadUiState.Success -> {
                 val result = snackbarHostState.showSnackbar(
-                    message = "File has been downloaded.",
+                    message = "Fayl umumiy yuklamalar papkasiga saqlandi: ${state.fileName}",
                     actionLabel = "OPEN",
                     // Keep the snackbar on screen long enough to be tapped
                     duration = SnackbarDuration.Long
@@ -189,7 +189,7 @@ fun FolderContentsScreen(
             }
 
             is FilePublicDownloadUiState.Error -> {
-                snackbarHostState.showSnackbar("Download Error: ${state.message}")
+                snackbarHostState.showSnackbar("Yuklab olishda hatolik: ${state.message}")
                 foldersViewModel.clearFilePublicDownloadStatus()
             }
 
@@ -231,7 +231,7 @@ fun FolderContentsScreen(
                 navigationIcon = {
                     if (currentFolderId != null) { // Show back arrow if not in root
                         IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Orqaga")
                         }
                     }
                 },
@@ -310,11 +310,11 @@ fun FolderContentsScreen(
                         ) {
                             Icon(
                                 Icons.Filled.Folder,
-                                "Empty folder",
+                                "Bosh papka",
                                 modifier = Modifier.size(48.dp)
                             )
                             Spacer(Modifier.height(8.dp))
-                            Text(if (isManager) "This folder is empty. Add a subfolder or upload files." else "This folder is empty.")
+                            Text(if (isManager) "Bu papka bosh, papka yarating yoki fayl yuklang." else "Bu papka bosh.")
                         }
                     } else {
                         LazyColumn(
@@ -324,8 +324,8 @@ fun FolderContentsScreen(
                         ) {
                             items(combinedItems, key = { item ->
                                 when (item) {
-                                    is Folder -> "folder-${item.id}"
-                                    is Document -> "doc-${item.id}"
+                                    is Folder -> "papka-${item.id}"
+                                    is Document -> "hujjat-${item.id}"
                                     else -> uuid4().toString() // Should not happen
                                 }
                             }) { item ->
@@ -378,10 +378,10 @@ fun FolderContentsScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Text("Error: ${state.message}", maxLines = 4)
+                        Text("Xato: ${state.message}", maxLines = 4)
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = { foldersViewModel.loadFolderContents(currentFolderId) }) {
-                            Text("Retry")
+                            Text("Takrorlash")
                         }
                     }
                 }
@@ -392,7 +392,7 @@ fun FolderContentsScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Text("Initializing...")
+                        Text("Yuklanmoqda...")
                     }
                 }
             }
@@ -419,10 +419,10 @@ fun FolderContentsScreen(
                             Spacer(Modifier.height(8.dp))
                             Text(
                                 when {
-                                    fileUploadState is FileUploadUiState.Loading -> "Uploading..."
-                                    fileDownloadState is FileDownloadUiState.Loading || fileDownloadState is FileDownloadUiState.Downloading -> "Opening file..."
-                                    filePublicDownloadState is FilePublicDownloadUiState.Downloading -> "Downloading to public folder..."
-                                    else -> "Processing..."
+                                    fileUploadState is FileUploadUiState.Loading -> "Fayl yuklanmoqda..."
+                                    fileDownloadState is FileDownloadUiState.Loading || fileDownloadState is FileDownloadUiState.Downloading -> "Fayl ochilmoqda..."
+                                    filePublicDownloadState is FilePublicDownloadUiState.Downloading -> "Umumiy papkaga yuklanmoqda..."
+                                    else -> "Jarayonda..."
                                 }
                             )
                         }
@@ -434,7 +434,7 @@ fun FolderContentsScreen(
 
     if (showAddFolderDialog && isManager) {
         FolderEditDialog(
-            title = "Create New Folder",
+            title = "Yangi papaka yaratish",
             onDismiss = { showAddFolderDialog = false },
             onConfirm = { name, description ->
                 foldersViewModel.createFolder(name, description, currentFolderId)
@@ -447,7 +447,7 @@ fun FolderContentsScreen(
         if (isManager) {
             FolderEditDialog(
                 existingFolder = folderToEdit,
-                title = "Edit Folder",
+                title = "Papka tahrirlash: ${folderToEdit.name}",
                 onDismiss = { showEditFolderDialog = null },
                 onConfirm = { name, description ->
                     foldersViewModel.updateFolder(
@@ -465,8 +465,8 @@ fun FolderContentsScreen(
         if (isManager) {
             AlertDialog(
                 onDismissRequest = { showDeleteFolderDialog = null },
-                title = { Text("Delete Folder") },
-                text = { Text("Are you sure you want to delete folder \"${folderToDelete.name}\"? This action may delete all its contents (subfolders and files) depending on database setup. This action cannot be undone.") },
+                title = { Text("Papkani o'chirish") },
+                text = { Text("Haqiqatan ham “${folderToDelete.name}” jildini o‘chirib tashlamoqchimisiz? Ushbu harakat ma'lumotlar bazasi sozlamalariga qarab uning barcha tarkibini (papkalar va fayllar) o'chirib tashlashi mumkin. Bu amalni ortga qaytarib bo‘lmaydi.") },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -477,10 +477,10 @@ fun FolderContentsScreen(
                             showDeleteFolderDialog = null
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) { Text("Delete") }
+                    ) { Text("O'chirish") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteFolderDialog = null }) { Text("Cancel") }
+                    TextButton(onClick = { showDeleteFolderDialog = null }) { Text("Bekor qilish") }
                 }
             )
         }
@@ -581,7 +581,7 @@ private fun FolderEditDialog(
                     value = name,
                     onValueChange = {
                         name = it
-                        nameError = if (it.isNotBlank()) null else "Folder name cannot be empty."
+                        nameError = if (it.isNotBlank()) null else "Papka bosh bo'lishi mumkin emas."
                     },
                     label = { Text("Folder Name*") },
                     modifier = Modifier.fillMaxWidth(),
@@ -599,7 +599,7 @@ private fun FolderEditDialog(
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Description (Optional)") },
+                    label = { Text("Tasnif (ixtiyoriy)") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     maxLines = 4
@@ -609,13 +609,13 @@ private fun FolderEditDialog(
         confirmButton = {
             Button(onClick = {
                 if (name.isBlank()) {
-                    nameError = "Folder name cannot be empty."
+                    nameError = "Papka nomi bo'sh bo'lishi mumkin emas."
                 } else {
                     onConfirm(name.trim(), description.trim())
                 }
-            }) { Text(if (existingFolder == null) "Create" else "Save") }
+            }) { Text(if (existingFolder == null) "Yaratish" else "Saqlash") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Bekor qilish") } }
     )
 }
 
@@ -636,7 +636,7 @@ private fun CreateUserDialog( // Copied from original FoldersScreen, can be move
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create New User") },
+        title = { Text("Yangi user yaratish") },
         text = {
             Column {
                 OutlinedTextField(
@@ -716,7 +716,7 @@ private fun CreateUserDialog( // Copied from original FoldersScreen, can be move
                         onClick = { isAdminState = false }
                     )
                     Text(
-                        text = "Regular User",
+                        text = "Oddiy User",
                         modifier = Modifier.clickable(onClick = { isAdminState = false })
                             .padding(start = 4.dp)
                     )
@@ -742,7 +742,7 @@ private fun CreateUserDialog( // Copied from original FoldersScreen, can be move
                     val isEmailCurrentlyValid = isValidEmail(email)
                     val isPasswordCurrentlyValid = password.length >= 6
 
-                    usernameError = if (isUsernameValid) null else "Username cannot be empty."
+                    usernameError = if (isUsernameValid) null else "Username bo'sh bo'lishi mumkin emas"
                     emailError = if (isEmailCurrentlyValid) null else "Invalid email format."
                     passwordError =
                         if (isPasswordCurrentlyValid) null else "Password must be at least 6 characters."
@@ -751,8 +751,8 @@ private fun CreateUserDialog( // Copied from original FoldersScreen, can be move
                         onConfirm(username.trim(), email.trim(), password, isAdminState)
                     }
                 }
-            ) { Text("Create User") }
+            ) { Text("User yaratish") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Bekor qilish") } }
     )
 }
