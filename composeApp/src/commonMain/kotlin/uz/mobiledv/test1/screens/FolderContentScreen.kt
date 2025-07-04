@@ -205,6 +205,7 @@ fun FolderContentsScreen(
     }
     LaunchedEffect(userCreationAlert) {
         userCreationAlert?.let { message ->
+            showCreateUserDialog != showCreateUserDialog // Toggle dialog visibility
             snackbarHostState.showSnackbar(message)
             appViewModel.operationAlert.value = null // Consume alert
             if (message.startsWith("User") && (message.contains("created successfully") || message.contains(
@@ -489,7 +490,6 @@ fun FolderContentsScreen(
             onDismiss = { showCreateUserDialog = false },
             onConfirm = { username, email, password, isAdmin ->
                 appViewModel.adminCreateUser(username, email, password, isAdmin)
-                showCreateUserDialog = false // Close dialog on confirm
                 // Dialog closure handled by LaunchedEffect on userCreationAlert
             }
         )
