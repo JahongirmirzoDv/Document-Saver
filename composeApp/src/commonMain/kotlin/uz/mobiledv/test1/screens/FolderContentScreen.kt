@@ -487,8 +487,9 @@ fun FolderContentsScreen(
     if (showCreateUserDialog && isManager && currentFolderId == null) { // Only at root
         CreateUserDialog(
             onDismiss = { showCreateUserDialog = false },
-            onConfirm = { username, email, password ->
-                appViewModel.adminCreateUser(username, email, password, isAdmin = false)
+            onConfirm = { username, email, password, isAdmin ->
+                appViewModel.adminCreateUser(username, email, password, isAdmin)
+                showCreateUserDialog = false // Close dialog on confirm
                 // Dialog closure handled by LaunchedEffect on userCreationAlert
             }
         )
@@ -622,7 +623,7 @@ private fun FolderEditDialog(
 @Composable
 private fun CreateUserDialog( // Copied from original FoldersScreen, can be moved to a common components file
     onDismiss: () -> Unit,
-    onConfirm: (username: String, email: String, pass: String) -> Unit
+    onConfirm: (username: String, email: String, pass: String, isAdmin: Boolean) -> Unit
 ) {
     var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -631,6 +632,7 @@ private fun CreateUserDialog( // Copied from original FoldersScreen, can be move
     var usernameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
+    var isAdminState by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -706,6 +708,31 @@ private fun CreateUserDialog( // Copied from original FoldersScreen, can be move
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("User Role:", style = MaterialTheme.typography.labelMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = !isAdminState,
+                        onClick = { isAdminState = false }
+                    )
+                    Text(
+                        text = "Regular User",
+                        modifier = Modifier.clickable(onClick = { isAdminState = false })
+                            .padding(start = 4.dp)
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    RadioButton(
+                        selected = isAdminState,
+                        onClick = { isAdminState = true }
+                    )
+                    Text(
+                        text = "Admin",
+                        modifier = Modifier.clickable(onClick = { isAdminState = true })
+                            .padding(start = 4.dp)
+                    )
+                }
+
+
             }
         },
         confirmButton = {
@@ -721,7 +748,7 @@ private fun CreateUserDialog( // Copied from original FoldersScreen, can be move
                         if (isPasswordCurrentlyValid) null else "Password must be at least 6 characters."
 
                     if (isUsernameValid && isEmailCurrentlyValid && isPasswordCurrentlyValid) {
-                        onConfirm(username.trim(), email.trim(), password)
+                        onConfirm(username.trim(), email.trim(), password, isAdminState)
                     }
                 }
             ) { Text("Create User") }

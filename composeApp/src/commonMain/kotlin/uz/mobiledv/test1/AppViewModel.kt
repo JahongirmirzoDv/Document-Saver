@@ -8,6 +8,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -115,7 +116,7 @@ class AppViewModel(
         }
     }
 
-    fun adminCreateUser(username: String, email: String, password: String, isAdmin: Boolean = false) {
+    fun adminCreateUser(username: String, email: String, password: String, isAdmin: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             operationAlert.value = null
             // User creation is an administrative action, controlled by isManager

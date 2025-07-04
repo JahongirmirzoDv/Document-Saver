@@ -61,16 +61,12 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.lifecycle.runtime.compose)
 
-            implementation(libs.androidx.lifecycle.viewmodel)
-            implementation(libs.androidx.lifecycle.runtime.compose)
             implementation(libs.jetbrains.compose.navigation)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.koin.compose)
             implementation(libs.koin.compose.viewmodel)
             api(libs.koin.core)
 
-            // Ktor Core and Content Negotiation
-//            implementation(libs.bundles.ktor)
 
             api(libs.ktor.client.core)                 // Core Ktor client functionality
             api(libs.ktor.client.content.negotiation)  // For handling JSON, XML, etc.
@@ -78,14 +74,12 @@ kotlin {
 
             // Coroutines
             implementation(libs.kotlinx.coroutines.core)
-            // implementation(libs.kotlinx.coroutines.play.services) // Use the latest stable version
 
             // Supabase
             implementation(project.dependencies.platform("io.github.jan-tennert.supabase:bom:3.1.4"))
             implementation("io.github.jan-tennert.supabase:postgrest-kt")
             implementation("io.github.jan-tennert.supabase:storage-kt")
             implementation("io.github.jan-tennert.supabase:auth-kt")
-//            implementation("io.github.jan-tennert.supabase:realtime-kt")
 
             implementation(libs.multiplatformSettings.noArg) // Common dependency
             implementation(libs.multiplatformSettings.coroutines) // Optional for coroutines support
@@ -96,9 +90,6 @@ kotlin {
 
             implementation(libs.androidx.documentfile)
 
-//            implementation(libs.moko.mvvm.core) // Or moko-mvvm-viewmodel
-//            implementation(libs.moko.mvvm.compose) // For rememberViewModel
-
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -108,18 +99,12 @@ kotlin {
             implementation(libs.kotlinx.coroutines.swing)
 
             implementation(libs.slf4j.simple)
-            // Ktor client for Desktop (CIO engine)
-            // Ktor client dependencies for Desktop
             implementation("io.ktor:ktor-client-core:3.0.0")      // Ensures HttpTimeout and other core features are present
             implementation("io.ktor:ktor-client-cio:3.0.0")      // The CIO engine you are using
             implementation("io.ktor:ktor-client-logging:3.0.0")  // For the Logging plugin
             implementation(libs.multiplatformSettings.noArg) // For Desktop (uses Java Preferences)
 
         }
-        nativeMain.dependencies {
-            implementation(libs.ktor.client.darwin)
-        }
-
 //        iosMain.dependencies {
 //            implementation(libs.ktor.client.darwin)
 //        }
@@ -185,6 +170,6 @@ compose.desktop {
     }
 }
 
-compose.experimental {
-    web.application {}
-}
+//compose.experimental {
+//    web.application {}
+//}
