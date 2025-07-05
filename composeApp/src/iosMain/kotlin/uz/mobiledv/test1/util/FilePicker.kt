@@ -12,12 +12,20 @@ import kotlinx.coroutines.launch
 
 actual class FilePicker {
     actual suspend fun pickSingleFile(allowedTypes: List<String>): FileData? {
-        println("FilePicker.pickSingleFile() not implemented for iOS yet.")
+        // iOS file picking requires UIDocumentPickerViewController which needs UIKit integration
+        // This is a placeholder implementation that logs the request
+        println("FilePicker.pickSingleFile() called with allowedTypes: ${allowedTypes.joinToString()}")
+        println("FilePicker.pickSingleFile() - iOS implementation requires UIKit integration")
+        println("FilePicker.pickSingleFile() - Consider using UIDocumentPickerViewController in native iOS code")
         return null
     }
 
     actual suspend fun pickMultipleFiles(allowedTypes: List<String>): List<FileData>? {
-        println("FilePicker.pickMultipleFiles() not implemented for iOS yet.")
+        // iOS file picking requires UIDocumentPickerViewController which needs UIKit integration
+        // This is a placeholder implementation that logs the request
+        println("FilePicker.pickMultipleFiles() called with allowedTypes: ${allowedTypes.joinToString()}")
+        println("FilePicker.pickMultipleFiles() - iOS implementation requires UIKit integration")
+        println("FilePicker.pickMultipleFiles() - Consider using UIDocumentPickerViewController in native iOS code")
         return null
     }
 }
@@ -30,7 +38,9 @@ actual fun rememberSingleFilePickerLauncher(
     val scope = CoroutineScope(Dispatchers.Main)
     return {
         scope.launch {
-            println("rememberSingleFilePickerLauncher not implemented for iOS yet.")
+            println("rememberSingleFilePickerLauncher called with allowedTypes: ${allowedTypes.joinToString()}")
+            println("rememberSingleFilePickerLauncher - iOS implementation requires UIKit integration")
+            println("rememberSingleFilePickerLauncher - Consider implementing with UIDocumentPickerViewController")
             onFilePicked(null)
         }
     }
@@ -44,7 +54,9 @@ actual fun rememberMultipleFilesPickerLauncher(
     val scope = CoroutineScope(Dispatchers.Main)
     return {
         scope.launch {
-            println("rememberMultipleFilesPickerLauncher not implemented for iOS yet.")
+            println("rememberMultipleFilesPickerLauncher called with allowedTypes: ${allowedTypes.joinToString()}")
+            println("rememberMultipleFilesPickerLauncher - iOS implementation requires UIKit integration")
+            println("rememberMultipleFilesPickerLauncher - Consider implementing with UIDocumentPickerViewController")
             onFilesPicked(null)
         }
     }
@@ -55,7 +67,9 @@ actual fun rememberDirectoryPickerLauncher(
     onDirectoryPicked: (DirectoryUploadRequest?) -> Unit
 ): () -> Unit {
      return {
-        println("rememberDirectoryPickerLauncher not implemented for iOS yet.")
+        println("rememberDirectoryPickerLauncher called")
+        println("rememberDirectoryPickerLauncher - iOS implementation requires UIKit integration")
+        println("rememberDirectoryPickerLauncher - Consider implementing with UIDocumentPickerViewController")
         onDirectoryPicked(null)
     }
 }
