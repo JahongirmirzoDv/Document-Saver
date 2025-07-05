@@ -105,9 +105,11 @@ kotlin {
             implementation(libs.multiplatformSettings.noArg) // For Desktop (uses Java Preferences)
 
         }
-//        iosMain.dependencies {
-//            implementation(libs.ktor.client.darwin)
-//        }
+
+        iosMain.dependencies {
+            implementation("io.ktor:ktor-client-darwin:3.0.0")
+            implementation(libs.multiplatformSettings.noArg)
+        }
     }
 }
 
