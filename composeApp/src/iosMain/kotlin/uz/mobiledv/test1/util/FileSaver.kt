@@ -16,24 +16,33 @@ import platform.Foundation.writeToFile
 @OptIn(ExperimentalForeignApi::class)
 actual class FileSaver {
     actual suspend fun saveFile(fileData: FileData): String? {
-        val documentsDir = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, true).first() as NSString
-        val filePath = documentsDir.stringByAppendingPathComponent(fileData.name)
+        return try {
+            val documentsDir = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, true).first() as NSString
+            val filePath = documentsDir.stringByAppendingPathComponent(fileData.name)
 
-        val nsData = fileData.bytes.usePinned { pinned ->
-            NSData.create(bytes = pinned.addressOf(0), length = fileData.bytes.size.toULong())
-        }
+            val nsData = fileData.bytes.usePinned { pinned ->
+                NSData.create(bytes = pinned.addressOf(0), length = fileData.bytes.size.toULong())
+            }
 
-        return if (nsData.writeToFile(filePath, true)) {
-            filePath
-        } else {
+            if (nsData.writeToFile(filePath, true)) {
+                println("FileSaver: Successfully saved file to: $filePath")
+                filePath
+            } else {
+                println("FileSaver: Failed to write file to: $filePath")
+                null
+            }
+        } catch (e: Exception) {
+            println("FileSaver: Error saving file '${fileData.name}': ${e.message}")
+            e.printStackTrace()
             null
         }
     }
 
     actual suspend fun saveFileToPublicDownloads(fileData: FileData): String? {
-       // On iOS, apps are sandboxed and cannot directly write to a public "Downloads" folder.
-       // The common practice is to save to the app's own Documents directory
-       // and optionally use UIDocumentInteractionController to let the user move it.
-       return saveFile(fileData)
+        // On iOS, apps are sandboxed and cannot directly write to a public "Downloads" folder.
+        // The common practice is to save to the app's own Documents directory
+        // and optionally use UIDocumentInteractionController to let the user move it.
+        println("FileSaver: iOS apps save to Documents directory instead of public Downloads")
+        return saveFile(fileData)
     }
 }
