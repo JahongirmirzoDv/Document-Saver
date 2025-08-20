@@ -76,13 +76,19 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
 
             // Supabase
-            implementation(project.dependencies.platform("io.github.jan-tennert.supabase:bom:3.1.4"))
-            implementation("io.github.jan-tennert.supabase:postgrest-kt")
-            implementation("io.github.jan-tennert.supabase:storage-kt")
-            implementation("io.github.jan-tennert.supabase:auth-kt")
+//            implementation(project.dependencies.platform("io.github.jan-tennert.supabase:bom:3.1.4"))
+//            implementation("io.github.jan-tennert.supabase:postgrest-kt")
+//            implementation("io.github.jan-tennert.supabase:storage-kt")
+//            implementation("io.github.jan-tennert.supabase:auth-kt")
+
+
+            // Supabase (Specify versions compatible with Kotlin 2.0.x)
+            implementation("io.github.jan-tennert.supabase:postgrest-kt:3.0.0")
+            implementation("io.github.jan-tennert.supabase:storage-kt:3.0.0")
+            implementation("io.github.jan-tennert.supabase:auth-kt:3.0.0")
 
             implementation(libs.multiplatformSettings.noArg) // Common dependency
-            implementation(libs.multiplatformSettings.coroutines) // Optional for coroutines support
+//            implementation(libs.multiplatformSettings.coroutines) // Optional for coroutines support
 
             implementation("com.benasher44:uuid:0.8.4")
 
