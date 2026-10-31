@@ -1,6 +1,6 @@
-# Doc Saver - Secure Document Management (Android & Desktop)
+# Document Saver — Compose Multiplatform Document Management
 
-**Doc Saver** is a Kotlin Multiplatform application designed for secure and organized document management across Android and Desktop (Windows, macOS, Linux) platforms. It allows users to create folders (including nested subfolders), upload various file types, and access them seamlessly, with a focus on providing distinct functionalities for regular users and administrative managers.
+**Doc Saver** is a Kotlin Multiplatform application for organizing documents across Android and Desktop (Windows, macOS, Linux) platforms. It allows users to create folders (including nested subfolders), upload various file types, and access them seamlessly, with a focus on providing distinct functionalities for regular users and administrative managers.
 
 ## ✨ Features
 
@@ -8,7 +8,7 @@
   * Native Android application.
   * Native Desktop application (powered by Compose for Desktop).
 * **User Authentication:**
-  * Secure login system.
+  * Custom table-based login prototype; review the security limitations below before use.
   * "Remember me" functionality for convenience.
   * Desktop administrators can create and manage user accounts.
 * **Hierarchical Folder Management:**
@@ -56,14 +56,14 @@
 
 ### Prerequisites
 
-* Java Development Kit (JDK) 11 or higher.
+* A Gradle JDK compatible with the checked-in Android Gradle Plugin (the application's JVM bytecode target is 11).
 * Android Studio (latest).
 * IntelliJ IDEA (latest).
 * A Supabase project.
 
 ### Supabase Database Setup:
 
-Ensure your Supabase project has the following tables (SQL DDL examples provided for guidance, adapt as needed):
+The following SQL examples are illustrative rather than a complete migration. Match the actual models and custom authentication flow before creating a Supabase project; the current login uses a custom users table, so an `auth.users` foreign key is not interchangeable without adapting the application.
 
 * **`folders` table:**
   * `id` (UUID, Primary Key, default `uuid_generate_v4()`)
@@ -124,9 +124,27 @@ Ensure your Supabase project has the following tables (SQL DDL examples provided
   * Verify in `composeApp/src/androidMain/AndroidManifest.xml`.
 
 ### Building and Running
-(Instructions remain the same)
 
-... (rest of README.md can remain similar, update security section about RLS for hierarchical data) ...
+Open the repository in Android Studio or IntelliJ IDEA, install the Android SDK versions declared in `gradle/libs.versions.toml`, and configure your own Supabase project before using remote features.
+
+```bash
+# Run the desktop application
+./gradlew :composeApp:run
+
+# Build an Android debug APK
+./gradlew :composeApp:assembleDebug
+```
+
+On Windows, use `gradlew.bat`. The `iosApp/` Xcode project and `iosMain` source set are also present; iOS file operations include incomplete implementations, so iOS is not presented as a finished target.
+
+### Source Map
+
+* `composeApp/src/commonMain/`: shared screens, models, state, and Supabase integration.
+* `composeApp/src/androidMain/`: Android entry points, file handling, and APK update support.
+* `composeApp/src/desktopMain/`: desktop launcher and platform file handling.
+* `composeApp/src/iosMain/` and `iosApp/`: iOS integration work.
+
+This is a prototype. Backend policies, authentication hardening, and platform behavior need verification before deployment.
 
 ## 🔐 Security Considerations
 
